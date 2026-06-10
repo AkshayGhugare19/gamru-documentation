@@ -17,10 +17,12 @@ export const NAV = [
   },
   {
     section: 'API reference — Gamru engine',
+    platform: 'gamru',
     links: [{ label: 'Overview', to: '/api/gamru' }],
   },
   {
     section: 'API reference — Games platform',
+    platform: 'games',
     links: [{ label: 'Overview', to: '/api/games' }],
   },
 ]

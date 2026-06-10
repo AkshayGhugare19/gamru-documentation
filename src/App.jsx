@@ -6,6 +6,7 @@ import AuthPage from './pages/AuthPage'
 import IntegrationGuide from './pages/IntegrationGuide'
 import FlowPage from './pages/FlowPage'
 import ApiPage from './pages/ApiPage'
+import EndpointPage from './pages/EndpointPage'
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="/flows/:id" element={<FlowPage />} />
           <Route path="/api/gamru" element={<ApiPage platform="gamru" />} />
           <Route path="/api/games" element={<ApiPage platform="games" />} />
+          <Route path="/api/:platform/:id" element={<EndpointPage />} />
           <Route path="*" element={<Home />} />
         </Routes>
       </Layout>

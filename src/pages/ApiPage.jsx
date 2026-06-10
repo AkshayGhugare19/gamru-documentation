@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Server } from 'lucide-react'
 import { groupsFor, ENDPOINTS, AUTH } from '../data/endpoints'
-import EndpointCard from '../components/EndpointCard'
 import { MethodBadge, AuthBadge } from '../components/primitives'
 
-const META = {
+export const PLATFORM_META = {
   gamru: {
     title: 'Gamru engine API',
     sub: 'gamru-backend',
@@ -23,25 +22,9 @@ const META = {
 }
 
 export default function ApiPage({ platform }) {
-  const meta = META[platform]
+  const meta = PLATFORM_META[platform]
   const groups = groupsFor(platform)
-  const { hash } = useLocation()
   const [activeGroup, setActiveGroup] = useState(groups[0]?.group)
-
-  // Support deep links like #/api/gamru#gamru-integration-events
-  useEffect(() => {
-    const id = hash.includes('#') ? hash.split('#').pop() : ''
-    if (id) {
-      const el = document.getElementById(id)
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        // highlight which group it belongs to
-        for (const g of groups) {
-          if (g.items.some((it) => it.id === id)) setActiveGroup(g.group)
-        }
-      }
-    }
-  }, [hash, platform]) // eslint-disable-line
 
   const endpointCount = ENDPOINTS.filter((e) => e.platform === platform).length
   const usedAuth = [...new Set(ENDPOINTS.filter((e) => e.platform === platform).map((e) => e.auth))]
@@ -109,31 +92,34 @@ export default function ApiPage({ platform }) {
         ))}
       </div>
 
+      {/* each group lists its endpoints as links to their own detail page */}
       {groups.map((g) => (
-        <div key={g.group} id={slug(g.group)} className="scroll-mt-24">
-          <div className="sticky top-16 z-10 -mx-2 mb-2 flex items-center gap-3 bg-slate-50/90 px-2 py-3 backdrop-blur dark:bg-slate-950/90">
+        <div key={g.group} id={slug(g.group)} className="mb-10 scroll-mt-24">
+          <div className="mb-3 flex items-center gap-3">
             <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{g.group}</h2>
             <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               {g.items.length}
             </span>
           </div>
-          {/* quick index of endpoints in this group */}
-          <div className="mb-2 grid gap-1.5 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             {g.items.map((ep) => (
-              <button
+              <Link
                 key={ep.id}
-                type="button"
-                onClick={() => scrollToId(ep.id)}
-                className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                to={`/api/${platform}/${ep.id}`}
+                className="group flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-brand-500/40"
               >
-                <MethodBadge method={ep.method} />
-                <span className="truncate font-mono text-xs text-slate-600 dark:text-slate-300">{ep.path}</span>
-              </button>
-            ))}
-          </div>
-          <div>
-            {g.items.map((ep) => (
-              <EndpointCard key={ep.id} ep={ep} />
+                <div className="flex items-center gap-2">
+                  <MethodBadge method={ep.method} />
+                  <code className="truncate font-mono text-xs text-slate-600 dark:text-slate-300">{ep.path}</code>
+                </div>
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="font-semibold text-slate-900 transition group-hover:text-brand-700 dark:text-white dark:group-hover:text-brand-300">
+                    {ep.title}
+                  </h3>
+                  <AuthBadge auth={ep.auth} />
+                </div>
+                <p className="line-clamp-2 text-sm leading-6 text-slate-500 dark:text-slate-400">{ep.summary}</p>
+              </Link>
             ))}
           </div>
         </div>

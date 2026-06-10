@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
-import { Boxes, Github, Menu, Moon, Search, Sun, X } from 'lucide-react'
+import { Boxes, ChevronRight, Github, Menu, Moon, Search, Sun, X } from 'lucide-react'
 import { NAV, TOP_NAV } from '../data/nav'
-import { ENDPOINTS } from '../data/endpoints'
+import { ENDPOINTS, groupsFor } from '../data/endpoints'
 import { FLOWS } from '../data/flows'
+import { MethodBadge } from './primitives'
 import LanguageSelect from './LanguageSelect'
 
 function useDarkMode() {
@@ -27,7 +28,7 @@ const SEARCH_INDEX = [
   ...ENDPOINTS.map((e) => ({
     label: `${e.method} ${e.path}`,
     sub: `${e.platform === 'gamru' ? 'Gamru' : 'Games'} · ${e.title}`,
-    to: `/api/${e.platform}#${e.id}`,
+    to: `/api/${e.platform}/${e.id}`,
   })),
 ]
 
@@ -77,37 +78,141 @@ function SearchBox() {
   )
 }
 
+// Expandable API section: section header -> collapsible endpoint groups ("tabs")
+// -> per-endpoint links that deep-link to the endpoint detail on the API page.
+function ApiNavSection({ section, platform, onNavigate }) {
+  const { pathname } = useLocation()
+  const groups = groupsFor(platform)
+  const base = `/api/${platform}`
+  const activeId = pathname.startsWith(base + '/') ? pathname.slice(base.length + 1) : ''
+  const activeGroup = groups.find((g) => g.items.some((it) => it.id === activeId))?.group
+
+  const [open, setOpen] = useState(() => new Set(activeGroup ? [activeGroup] : []))
+
+  // Keep the group containing the current endpoint expanded as the user navigates.
+  useEffect(() => {
+    if (activeGroup) setOpen((prev) => (prev.has(activeGroup) ? prev : new Set(prev).add(activeGroup)))
+  }, [activeGroup])
+
+  const toggle = (g) =>
+    setOpen((prev) => {
+      const next = new Set(prev)
+      next.has(g) ? next.delete(g) : next.add(g)
+      return next
+    })
+
+  return (
+    <div>
+      <h4 className="mb-2 flex items-center gap-2 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+        <span className="h-1 w-1 rounded-full bg-brand-500" />
+        {section}
+      </h4>
+      <ul className="space-y-0.5">
+        <li>
+          <NavLink
+            to={base}
+            end
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              `block rounded-lg px-3 py-1.5 transition ${
+                isActive
+                  ? 'bg-gradient-to-r from-brand-50 to-transparent font-semibold text-brand-700 dark:from-brand-500/15 dark:text-brand-300'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-100'
+              }`
+            }
+          >
+            Overview
+          </NavLink>
+        </li>
+        {groups.map((g) => {
+          const isOpen = open.has(g.group)
+          return (
+            <li key={g.group}>
+              <button
+                type="button"
+                onClick={() => toggle(g.group)}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-slate-100"
+              >
+                <ChevronRight
+                  size={14}
+                  className={`shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                />
+                <span className="flex-1 truncate font-medium">{g.group}</span>
+                <span className="rounded-full bg-slate-100 px-1.5 text-[10px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                  {g.items.length}
+                </span>
+              </button>
+              {isOpen && (
+                <ul className="ml-3 mt-0.5 space-y-0.5 border-l border-slate-200 pl-2 dark:border-slate-800">
+                  {g.items.map((ep) => {
+                    const isActive = activeId === ep.id
+                    return (
+                      <li key={ep.id}>
+                        <Link
+                          to={`/api/${platform}/${ep.id}`}
+                          onClick={onNavigate}
+                          className={`flex items-center gap-2 rounded-md px-2 py-1 transition ${
+                            isActive
+                              ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300'
+                              : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-100'
+                          }`}
+                        >
+                          <MethodBadge method={ep.method} className="scale-90" />
+                          <span className="truncate text-[13px]">{ep.title}</span>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
 function Sidebar({ onNavigate }) {
   return (
     <nav className="space-y-7 pb-16 text-sm">
-      {NAV.map((group) => (
-        <div key={group.section}>
-          <h4 className="mb-2 flex items-center gap-2 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-            <span className="h-1 w-1 rounded-full bg-brand-500" />
-            {group.section}
-          </h4>
-          <ul className="space-y-0.5">
-            {group.links.map((link) => (
-              <li key={link.to + link.label}>
-                <NavLink
-                  to={link.to}
-                  end={link.to === '/'}
-                  onClick={onNavigate}
-                  className={({ isActive }) =>
-                    `relative block rounded-lg px-3 py-1.5 transition before:absolute before:inset-y-1.5 before:left-0 before:w-1 before:rounded-full before:bg-gradient-to-b before:from-brand-500 before:to-brand-700 before:transition-opacity ${
-                      isActive
-                        ? 'bg-gradient-to-r from-brand-50 to-transparent font-semibold text-brand-700 before:opacity-100 dark:from-brand-500/15 dark:text-brand-300'
-                        : 'text-slate-600 before:opacity-0 hover:translate-x-0.5 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-100'
-                    }`
-                  }
-                >
-                  {link.label}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+      {NAV.map((group) =>
+        group.platform ? (
+          <ApiNavSection
+            key={group.section}
+            section={group.section}
+            platform={group.platform}
+            onNavigate={onNavigate}
+          />
+        ) : (
+          <div key={group.section}>
+            <h4 className="mb-2 flex items-center gap-2 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <span className="h-1 w-1 rounded-full bg-brand-500" />
+              {group.section}
+            </h4>
+            <ul className="space-y-0.5">
+              {group.links.map((link) => (
+                <li key={link.to + link.label}>
+                  <NavLink
+                    to={link.to}
+                    end={link.to === '/'}
+                    onClick={onNavigate}
+                    className={({ isActive }) =>
+                      `relative block rounded-lg px-3 py-1.5 transition before:absolute before:inset-y-1.5 before:left-0 before:w-1 before:rounded-full before:bg-gradient-to-b before:from-brand-500 before:to-brand-700 before:transition-opacity ${
+                        isActive
+                          ? 'bg-gradient-to-r from-brand-50 to-transparent font-semibold text-brand-700 before:opacity-100 dark:from-brand-500/15 dark:text-brand-300'
+                          : 'text-slate-600 before:opacity-0 hover:translate-x-0.5 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-100'
+                      }`
+                    }
+                  >
+                    {link.label}
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ),
+      )}
     </nav>
   )
 }

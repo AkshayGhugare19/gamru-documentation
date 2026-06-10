@@ -10,12 +10,12 @@
 // ---------------------------------------------------------------------------
 
 export const AUTH = {
-  none: { key: 'none', label: 'Public', color: 'slate' },
-  jwt: { key: 'jwt', label: 'JWT (operator)', color: 'emerald' },
-  admin: { key: 'admin', label: 'JWT + ADMIN', color: 'rose' },
-  client: { key: 'client', label: 'Client key (S2S)', color: 'amber' },
-  flex: { key: 'flex', label: 'JWT or Client key', color: 'violet' },
-  player: { key: 'player', label: 'Player JWT', color: 'sky' },
+  none: { key: 'none', label: 'Public', color: 'slate', hint: 'no auth' },
+  jwt: { key: 'jwt', label: 'JWT (operator)', color: 'emerald', hint: 'operator console token' },
+  admin: { key: 'admin', label: 'JWT + ADMIN', color: 'rose', hint: 'operator with ADMIN role' },
+  client: { key: 'client', label: 'Client key (S2S)', color: 'amber', hint: 'x-client-auth-key header' },
+  flex: { key: 'flex', label: 'JWT or Client key', color: 'violet', hint: 'operator or service' },
+  player: { key: 'player', label: 'Player JWT', color: 'sky', hint: 'player access token' },
 }
 
 const j = (o) => JSON.stringify(o, null, 2)
@@ -135,13 +135,21 @@ const gamru = [
     ],
     body: { fields: [
       { name: 'event_id', type: 'string', required: true, desc: 'unique & stable — dedupe key' },
-      { name: 'event_type', type: 'enum', required: true, desc: 'USER_REGISTERED | XP_AWARDED | LEVEL_UP | RANK_UP | DEPOSIT_MADE | WAGER | CASINO_WIN | LOGIN | WITHDRAWAL | KYC | ...' },
+      { name: 'event_type', type: 'enum', required: true, desc: 'USER_REGISTERED | XP_AWARDED | LEVEL_UP | RANK_UP | DEPOSIT_MADE | WAGER | CASINO_WIN | LOGIN | WITHDRAWAL | KYC — see the full catalog below' },
       { name: 'external_id', type: 'string', required: true, desc: 'platform’s user id' },
       { name: 'origin', type: 'string', required: false, desc: 'defaults to client.slug' },
       { name: 'email', type: 'string|null', required: false, desc: 'links USER_REGISTERED → player' },
       { name: 'amount', type: 'number', required: false, desc: 'XP delta / deposit amount / wager' },
       { name: 'meta', type: 'object', required: false, desc: 'game_id, game_category, bet, …' },
     ]},
+    bodyExample: {
+      event_id: 'WAGER:P-1001:r-88421',
+      event_type: 'WAGER',
+      external_id: 'P-1001',
+      origin: 'lucky-casino',
+      amount: 5,
+      meta: { game_id: 'g-100', game_category: 'slots', provider: 'NetEnt', bet: 5 },
+    },
     response: { status: 200, example: j({ success: true, message: 'Event processed', data: { applied: true, duplicate: false, player: { id: 'uuid', xp_points: 1240, level: 7, rank_name: 'Silver', xp_to_next: 260 } } }) },
   },
 

@@ -92,7 +92,7 @@ export default function GamruServiceApi() {
                     return (
                       <li key={eid}>
                         <Link
-                          to={`/api/${ep.platform}/${ep.id}`}
+                          to={`/user/endpoints/${ep.id}`}
                           className="block px-4 py-3 transition hover:bg-slate-50 dark:hover:bg-slate-800/50"
                         >
                           <div className="flex flex-wrap items-center gap-3">

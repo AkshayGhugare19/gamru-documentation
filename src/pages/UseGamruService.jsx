@@ -72,7 +72,7 @@ export default function UseGamruService() {
                   return (
                     <Link
                       key={eid}
-                      to={`/api/${ep.platform}/${ep.id}`}
+                      to={`/user/endpoints/${ep.id}`}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs transition hover:border-brand-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-brand-500/40"
                     >
                       <MethodBadge method={ep.method} className="scale-90" />

@@ -21,15 +21,13 @@ export default function App() {
           <Route path="/user/integrate" element={<UseGamruService />} />
           <Route path="/user/api" element={<GamruServiceApi />} />
           <Route path="/user/endpoints" element={<ApiPage platform="gamru" audience="user" />} />
+          <Route path="/user/endpoints/:id" element={<EndpointPage />} />
 
           {/* ADMIN panel — manage everything in Gamru */}
           <Route path="/admin" element={<AdminHome />} />
           <Route path="/admin/api" element={<AdminApi />} />
           <Route path="/admin/endpoints" element={<ApiPage platform="gamru" audience="admin" />} />
-
-          {/* shared endpoint detail + back-compat reference */}
-          <Route path="/api/gamru" element={<ApiPage platform="gamru" />} />
-          <Route path="/api/:platform/:id" element={<EndpointPage />} />
+          <Route path="/admin/endpoints/:id" element={<EndpointPage />} />
 
           <Route path="*" element={<Landing />} />
         </Routes>

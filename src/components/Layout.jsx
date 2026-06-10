@@ -26,7 +26,7 @@ function buildSearchIndex(panelKey) {
   return ENDPOINTS.filter((e) => e.audience === panelKey || e.audience === 'both').map((e) => ({
     label: `${e.method} ${e.path}`,
     sub: e.title,
-    to: `/api/${e.platform}/${e.id}`,
+    to: `/${panelKey}/endpoints/${e.id}`,
   }))
 }
 
@@ -81,7 +81,8 @@ function SearchBox({ panelKey }) {
 function ApiNavSection({ section, platform, audience, onNavigate }) {
   const { pathname } = useLocation()
   const groups = groupsFor(platform, audience)
-  const base = `/api/${platform}`
+  // Endpoint detail lives under the active panel, e.g. /admin/endpoints/:id.
+  const base = audience === 'admin' ? '/admin/endpoints' : '/user/endpoints'
   const activeId = pathname.startsWith(base + '/') ? pathname.slice(base.length + 1) : ''
   const activeGroup = groups.find((g) => g.items.some((it) => it.id === activeId))?.group
 
@@ -130,7 +131,7 @@ function ApiNavSection({ section, platform, audience, onNavigate }) {
                     return (
                       <li key={ep.id}>
                         <Link
-                          to={`/api/${platform}/${ep.id}`}
+                          to={`${base}/${ep.id}`}
                           onClick={onNavigate}
                           className={`flex items-center gap-2 rounded-md px-2 py-1 transition ${
                             isActive

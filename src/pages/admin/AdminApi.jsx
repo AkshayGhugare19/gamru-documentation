@@ -122,7 +122,7 @@ export default function AdminApi() {
                   {g.items.map((ep) => (
                     <li key={ep.id}>
                       <Link
-                        to={`/api/${ep.platform}/${ep.id}`}
+                        to={`/admin/endpoints/${ep.id}`}
                         className="block px-4 py-3 transition hover:bg-slate-50 dark:hover:bg-slate-800/50"
                       >
                         <div className="flex flex-wrap items-center gap-3">

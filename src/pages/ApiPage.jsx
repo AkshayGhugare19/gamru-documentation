@@ -37,6 +37,8 @@ export default function ApiPage({ platform, audience }) {
   const usedAuth = [...new Set(ENDPOINTS.filter(inScope).map((e) => e.auth))]
   const blurb = (audience && AUDIENCE_BLURB[audience]) || meta.blurb
   const title = audience === 'admin' ? 'Gamru admin API' : audience === 'user' ? 'Gamru user API' : meta.title
+  // Endpoint detail lives under the active panel so navigation never flips sides.
+  const detailBase = audience === 'admin' ? '/admin/endpoints' : '/user/endpoints'
 
   return (
     <div>
@@ -114,7 +116,7 @@ export default function ApiPage({ platform, audience }) {
             {g.items.map((ep) => (
               <Link
                 key={ep.id}
-                to={`/api/${platform}/${ep.id}`}
+                to={`${detailBase}/${ep.id}`}
                 className="group flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-brand-500/40"
               >
                 <div className="flex items-center gap-2">

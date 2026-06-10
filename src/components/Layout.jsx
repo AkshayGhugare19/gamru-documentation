@@ -82,7 +82,8 @@ function Sidebar({ onNavigate }) {
     <nav className="space-y-7 pb-16 text-sm">
       {NAV.map((group) => (
         <div key={group.section}>
-          <h4 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          <h4 className="mb-2 flex items-center gap-2 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            <span className="h-1 w-1 rounded-full bg-brand-500" />
             {group.section}
           </h4>
           <ul className="space-y-0.5">
@@ -93,10 +94,10 @@ function Sidebar({ onNavigate }) {
                   end={link.to === '/'}
                   onClick={onNavigate}
                   className={({ isActive }) =>
-                    `block rounded-md px-3 py-1.5 transition ${
+                    `relative block rounded-lg px-3 py-1.5 transition before:absolute before:inset-y-1.5 before:left-0 before:w-1 before:rounded-full before:bg-gradient-to-b before:from-brand-500 before:to-brand-700 before:transition-opacity ${
                       isActive
-                        ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-300'
-                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
+                        ? 'bg-gradient-to-r from-brand-50 to-transparent font-semibold text-brand-700 before:opacity-100 dark:from-brand-500/15 dark:text-brand-300'
+                        : 'text-slate-600 before:opacity-0 hover:translate-x-0.5 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-100'
                     }`
                   }
                 >
@@ -124,17 +125,21 @@ export default function Layout({ children }) {
   return (
     <div className="min-h-screen">
       {/* top bar */}
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+      <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/70 shadow-sm shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/70 dark:shadow-black/20">
         <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-4 px-4">
           <button className="lg:hidden" onClick={() => setMobileOpen((v) => !v)} aria-label="Toggle menu">
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
-          <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
+          <Link to="/" className="group flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lg shadow-brand-600/30 ring-1 ring-white/20 transition group-hover:scale-105">
               <Boxes size={18} />
             </span>
             <span className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white">
-              Gamru<span className="text-brand-600 dark:text-brand-400"> Docs</span>
+              Gamru
+              <span className="bg-gradient-to-r from-brand-500 to-brand-700 bg-clip-text text-transparent dark:from-brand-300 dark:to-brand-500">
+                {' '}
+                Docs
+              </span>
             </span>
           </Link>
 
@@ -145,10 +150,10 @@ export default function Layout({ children }) {
                 to={t.to}
                 end={t.to === '/'}
                 className={({ isActive }) =>
-                  `rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                  `relative rounded-md px-3 py-1.5 text-sm font-medium transition after:absolute after:inset-x-3 after:-bottom-px after:h-0.5 after:rounded-full after:bg-gradient-to-r after:from-brand-500 after:to-brand-700 after:transition-opacity ${
                     isActive
-                      ? 'text-brand-700 dark:text-brand-400'
-                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                      ? 'text-brand-700 after:opacity-100 dark:text-brand-300'
+                      : 'text-slate-600 after:opacity-0 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                   }`
                 }
               >
@@ -164,7 +169,7 @@ export default function Layout({ children }) {
             <LanguageSelect />
             <button
               onClick={() => setDark((v) => !v)}
-              className="rounded-lg border border-slate-300 p-2 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="rounded-xl border border-slate-300 p-2 text-slate-600 transition hover:bg-slate-100 hover:text-brand-600 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-brand-300"
               aria-label="Toggle theme"
             >
               {dark ? <Sun size={16} /> : <Moon size={16} />}
@@ -175,7 +180,7 @@ export default function Layout({ children }) {
 
       <div className="mx-auto flex max-w-[1400px]">
         {/* sidebar (desktop) */}
-        <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-72 shrink-0 overflow-y-auto border-r border-slate-200 px-3 py-6 dark:border-slate-800 lg:block">
+        <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-72 shrink-0 overflow-y-auto border-r border-slate-200/70 bg-gradient-to-b from-slate-50/50 to-transparent px-3 py-6 dark:border-white/10 dark:from-slate-900/40 lg:block">
           <Sidebar />
         </aside>
 

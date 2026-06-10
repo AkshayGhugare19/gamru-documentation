@@ -48,7 +48,7 @@ export default function AuthPage() {
       <div className="not-prose my-5">
         <CodeBlock
           label="Event call — both headers required"
-          code={`curl -X POST https://engine.gamru.io/api/integration/events \\
+          code={`curl -X POST https://gamru-backend-2.onrender.com/api/integration/events \\
   -H 'x-client-auth-key: ck_live_9f2c...' \\
   -H 'x-service-key: <SERVICE_SHARED_KEY>' \\
   -H 'Content-Type: application/json' \\

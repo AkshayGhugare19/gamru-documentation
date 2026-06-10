@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { CodeBlock } from '../components/primitives'
 
 const ENV = `# games platform env
-GAMRU_BACKEND_URL=https://engine.gamru.io/api   # base URL of the gamru engine
+GAMRU_BACKEND_URL=https://gamru-backend-2.onrender.com/api   # base URL of the gamru engine
 GAMRU_CLIENT_AUTH_KEY=ck_live_9f2c...           # per-client key (REQUIRED — process won't start without it)
 SERVICE_SHARED_KEY=hamara-gamify-shared-service-key  # shared S2S secret for /integration/events
 GAMRU_TIMEOUT_MS=8000                           # outbound request timeout`
@@ -132,8 +132,7 @@ export default function IntegrationGuide() {
       <h2>That’s it</h2>
       <p>
         Once events flow in and the snapshot renders, every <Link to="/">core flow</Link> works. Jump to a specific
-        flow to see the exact call sequence, or browse the full <Link to="/api/gamru">Gamru API</Link> and{' '}
-        <Link to="/api/games">Games API</Link>.
+        flow to see the exact call sequence, or browse the full <Link to="/api/gamru">Gamru API</Link>.
       </p>
     </div>
   )

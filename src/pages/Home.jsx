@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { ArrowRight, Boxes, GitBranch, KeyRound, Rocket, Trophy, Gift, Coins, Megaphone, Target, Layers, Wallet } from 'lucide-react'
 import { FLOWS } from '../data/flows'
 import { ENDPOINTS } from '../data/endpoints'
+import { CAPABILITIES } from '../data/service'
 
 const FLOW_ICONS = {
   onboarding: KeyRound,
@@ -17,7 +18,6 @@ const FLOW_ICONS = {
 
 export default function Home() {
   const gamruCount = ENDPOINTS.filter((e) => e.platform === 'gamru').length
-  const gamesCount = ENDPOINTS.filter((e) => e.platform === 'games').length
   return (
     <div className="doc-content">
       {/* hero */}
@@ -29,16 +29,22 @@ export default function Home() {
           Gamru gamification engine
         </h1>
         <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-600 dark:text-slate-300">
-          Gamru is the rules engine and operator console that owns players, XP, levels, ranks, missions,
-          tournaments, rewards and CRM. Your games platform sends it events and renders what it returns.
-          This portal documents every flow and every endpoint.
+          Gamru is a hosted gamification service. It owns players, XP, levels, ranks, missions, mission
+          bundles, tournaments, rewards and the token shop — your platform calls its API to register players
+          and drive all of it. This portal documents how to integrate Gamru and every endpoint you call.
         </p>
         <div className="mt-7 flex flex-wrap gap-3">
           <Link
-            to="/integration"
+            to="/use-gamru-service"
+            className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-2.5 font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:bg-brand-700"
+          >
+            Use Gamru Service <ArrowRight size={16} />
+          </Link>
+          <Link
+            to="/guides"
             className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-5 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
           >
-            Start integrating <ArrowRight size={16} />
+            Use Gamru in your app
           </Link>
           <Link
             to="/architecture"
@@ -48,50 +54,50 @@ export default function Home() {
           </Link>
         </div>
         <div className="mt-8 flex flex-wrap gap-6 text-sm">
-          <Stat n={FLOWS.length} label="end-to-end flows" />
-          <Stat n={gamruCount + '+'} label="gamru engine endpoints" />
-          <Stat n={gamesCount + '+'} label="games-platform endpoints" />
+          <Stat n={gamruCount + '+'} label="Gamru API endpoints" />
+          <Stat n={CAPABILITIES.length} label="capability groups" />
+          <Stat n={FLOWS.length} label="integration flows" />
         </div>
       </div>
 
-      {/* the two platforms */}
-      <h2>Two platforms, one player</h2>
+      {/* what you get */}
+      <h2>One service, your whole gamification layer</h2>
       <p>
-        Everything here lives across two services. Keep this split in mind and the rest of the docs falls
-        into place:
+        You don&apos;t build or run an engine. Hold a client key, call the Gamru API server-to-server, and
+        render what comes back. Here&apos;s what Gamru manages for you:
       </p>
       <div className="not-prose mt-5 grid gap-4 sm:grid-cols-2">
         <PlatformCard
           tone="brand"
-          title="Gamru engine"
-          sub="gamru-backend"
+          title="Players & progression"
+          sub="register + the XP engine"
           points={[
-            'Source of truth for players, XP, level & rank',
-            'Authors & evaluates missions, bundles, tournaments',
-            'Owns the reward ledger, token economy & reward shop',
-            'CRM: segments, campaigns, templates, triggers',
+            'Register a user + player with one call',
+            'Source of truth for XP, level & rank',
+            'One snapshot call powers every screen',
+            'Personalization from gameplay metadata',
           ]}
-          to="/api/gamru"
-          cta="Gamru API"
+          to="/use-gamru-service"
+          cta="How to integrate"
         />
         <PlatformCard
           tone="slate"
-          title="Games platform"
-          sub="my-game-platform-backend"
+          title="Engagement features"
+          sub="missions, rewards, shop, tournaments"
           points={[
-            'The casino / player-facing app',
-            'Sends gameplay & lifecycle events to gamru',
-            'Renders missions, rewards, leaderboards from gamru',
-            'Proxies claims & purchases through to gamru',
+            'Missions, mission bundles & tournaments',
+            'Reward ledger, token economy & shop',
+            'Live progress on a single snapshot call',
+            'Idempotent, fire-and-forget integration',
           ]}
-          to="/api/games"
-          cta="Games API"
+          to="/gamru-service-api"
+          cta="Browse the API"
         />
       </div>
 
       {/* flows */}
-      <h2>Explore the flows</h2>
-      <p>Each flow is a complete story — what the player does, what the casino sends, and how gamru responds.</p>
+      <h2>Explore the integration flows</h2>
+      <p>Each flow is a complete story — what triggers it, what your platform calls, and how Gamru responds.</p>
       <div className="not-prose mt-5 grid gap-3 sm:grid-cols-2">
         {FLOWS.map((f) => {
           const Icon = FLOW_ICONS[f.id] || GitBranch

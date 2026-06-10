@@ -1,10 +1,11 @@
 import { HashRouter, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
-import Home from './pages/Home'
-import Architecture from './pages/Architecture'
-import AuthPage from './pages/AuthPage'
-import IntegrationGuide from './pages/IntegrationGuide'
-import FlowPage from './pages/FlowPage'
+import Landing from './pages/Landing'
+import UserHome from './pages/user/UserHome'
+import UseGamruService from './pages/UseGamruService'
+import GamruServiceApi from './pages/GamruServiceApi'
+import AdminHome from './pages/admin/AdminHome'
+import AdminApi from './pages/admin/AdminApi'
 import ApiPage from './pages/ApiPage'
 import EndpointPage from './pages/EndpointPage'
 
@@ -13,15 +14,24 @@ export default function App() {
     <HashRouter>
       <Layout>
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/architecture" element={<Architecture />} />
-          <Route path="/auth" element={<AuthPage />} />
-          <Route path="/integration" element={<IntegrationGuide />} />
-          <Route path="/flows/:id" element={<FlowPage />} />
+          <Route path="/" element={<Landing />} />
+
+          {/* USER panel — integrate Gamru & let players use it */}
+          <Route path="/user" element={<UserHome />} />
+          <Route path="/user/integrate" element={<UseGamruService />} />
+          <Route path="/user/api" element={<GamruServiceApi />} />
+          <Route path="/user/endpoints" element={<ApiPage platform="gamru" audience="user" />} />
+
+          {/* ADMIN panel — manage everything in Gamru */}
+          <Route path="/admin" element={<AdminHome />} />
+          <Route path="/admin/api" element={<AdminApi />} />
+          <Route path="/admin/endpoints" element={<ApiPage platform="gamru" audience="admin" />} />
+
+          {/* shared endpoint detail + back-compat reference */}
           <Route path="/api/gamru" element={<ApiPage platform="gamru" />} />
-          <Route path="/api/games" element={<ApiPage platform="games" />} />
           <Route path="/api/:platform/:id" element={<EndpointPage />} />
-          <Route path="*" element={<Home />} />
+
+          <Route path="*" element={<Landing />} />
         </Routes>
       </Layout>
     </HashRouter>

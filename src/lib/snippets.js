@@ -93,7 +93,7 @@ function buildQuery(fields) {
 
 // ---- transport-agnostic request model -----------------------------------
 export function buildRequest(ep) {
-  const base = ep.platform === 'gamru' ? 'https://engine.gamru.io' : 'https://api.yourcasino.com'
+  const base = ep.platform === 'gamru' ? 'https://gamru-backend-2.onrender.com' : 'https://api.yourcasino.com'
 
   let path = ep.path
   if (ep.params) {

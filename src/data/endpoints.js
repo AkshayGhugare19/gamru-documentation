@@ -123,34 +123,58 @@ const gamru = [
     response: { status: 200, example: j({ success: true, data: { id: 'uuid', status: 'DISABLED' } }) },
   },
 
-  // ---- Integration (the event firehose) ----
+  // ---- Users (the registration on-ramp your platform calls) ----
+  {
+    id: 'gamru-users-add',
+    platform: 'gamru', group: 'Users & registration', method: 'POST', path: '/api/users/add',
+    title: 'Register a user (+ player)', auth: 'client',
+    summary: 'The call your platform makes on signup. Creates the gamru user AND the matching player in a single call (addUserService → createPlayerService). The route is public, but send your x-client-auth-key so gamru tags the account source=EXTERNAL to your client. This is what createGamruUser() wraps.',
+    headers: [
+      { name: 'x-client-auth-key', desc: 'your client key — marks the account EXTERNAL to your client' },
+    ],
+    body: { fields: [
+      { name: 'first_name', type: 'string', required: true, desc: '2–100 chars' },
+      { name: 'last_name', type: 'string', required: true, desc: '2–100 chars' },
+      { name: 'email', type: 'string', required: true, desc: 'valid email' },
+      { name: 'mobile', type: 'string', required: true, desc: '10–15 digits' },
+      { name: 'password', type: 'string', required: false, desc: '6–100 chars' },
+      { name: 'username', type: 'string', required: false, desc: '3–100 chars (else derive from email)' },
+      { name: 'role', type: "'USER' | 'ADMIN'", required: false, desc: 'default USER' },
+      { name: 'status', type: "'ACTIVE' | 'INACTIVE'", required: false, desc: 'default ACTIVE' },
+      { name: 'source', type: 'string', required: false, desc: 'your platform name, e.g. GAMIFY' },
+    ]},
+    response: { status: 201, example: j({ success: true, message: 'User added successfully', data: { id: 'uuid', email: 'jane@x.com', player_id: 'P-1001' } }) },
+  },
+
+  // ---- Integration (optional lifecycle event hook) ----
   {
     id: 'gamru-integration-events',
     platform: 'gamru', group: 'Integration', method: 'POST', path: '/api/integration/events',
-    title: 'Ingest a sync event', auth: 'client',
-    summary: 'The single inbound hook the games platform calls to push player lifecycle + gameplay events. Idempotent on event_id, fire-and-forget. Drives XP, level/rank, deposit segmentation and mission progress.',
+    title: 'Push a lifecycle event', auth: 'client',
+    summary: 'Optional one-way hook to notify gamru of player lifecycle facts. Idempotent on event_id, fire-and-forget. This is what syncToGamru() wraps. Requires BOTH the shared service key and your client key.',
     headers: [
-      { name: 'x-client-auth-key', desc: 'client key — required (tenant isolation)' },
-      { name: 'x-service-key', desc: 'shared service secret — required (defence in depth)' },
+      { name: 'x-service-key', desc: 'shared service secret — required (serviceAuth)' },
+      { name: 'x-client-auth-key', desc: 'your client key — required (clientAuth)' },
     ],
     body: { fields: [
-      { name: 'event_id', type: 'string', required: true, desc: 'unique & stable — dedupe key' },
-      { name: 'event_type', type: 'enum', required: true, desc: 'USER_REGISTERED | XP_AWARDED | LEVEL_UP | RANK_UP | DEPOSIT_MADE | WAGER | CASINO_WIN | LOGIN | WITHDRAWAL | KYC — see the full catalog below' },
-      { name: 'external_id', type: 'string', required: true, desc: 'platform’s user id' },
-      { name: 'origin', type: 'string', required: false, desc: 'defaults to client.slug' },
+      { name: 'event_id', type: 'string', required: true, desc: 'unique & stable (1–180 chars) — dedupe key' },
+      { name: 'event_type', type: 'enum', required: true, desc: 'USER_REGISTERED | XP_AWARDED | LEVEL_UP | RANK_UP | DEPOSIT_MADE' },
+      { name: 'external_id', type: 'string', required: true, desc: 'your platform’s user id (1–120 chars)' },
+      { name: 'origin', type: 'string', required: false, desc: 'your platform name (≤40 chars)' },
       { name: 'email', type: 'string|null', required: false, desc: 'links USER_REGISTERED → player' },
-      { name: 'amount', type: 'number', required: false, desc: 'XP delta / deposit amount / wager' },
-      { name: 'meta', type: 'object', required: false, desc: 'game_id, game_category, bet, …' },
+      { name: 'amount', type: 'number', required: false, desc: 'XP delta / deposit amount' },
+      { name: 'meta', type: 'object', required: false, desc: 'free-form context' },
     ]},
     bodyExample: {
-      event_id: 'WAGER:P-1001:r-88421',
-      event_type: 'WAGER',
+      event_id: 'DEPOSIT_MADE:P-1001:dep-5521',
+      event_type: 'DEPOSIT_MADE',
       external_id: 'P-1001',
-      origin: 'lucky-casino',
-      amount: 5,
-      meta: { game_id: 'g-100', game_category: 'slots', provider: 'NetEnt', bet: 5 },
+      origin: 'gamify',
+      email: 'jane@x.com',
+      amount: 100,
+      meta: { deposit_count: 3 },
     },
-    response: { status: 200, example: j({ success: true, message: 'Event processed', data: { applied: true, duplicate: false, player: { id: 'uuid', xp_points: 1240, level: 7, rank_name: 'Silver', xp_to_next: 260 } } }) },
+    response: { status: 200, example: j({ success: true, message: 'Event processed', data: { applied: true, duplicate: false } }) },
   },
 
   // ---- Players (read/write + S2S claim surface) ----
@@ -779,16 +803,57 @@ const games = [
   },
 ]
 
-export const ENDPOINTS = [...gamru, ...games]
+// Gamru-only portal: this is a service-consumer's reference to the Gamru API.
+// The games-platform endpoints are intentionally NOT surfaced — every consuming
+// platform is different and builds its own API; they all use Gamru as a service.
+export const ENDPOINTS = [...gamru]
+void games // retained for reference; not exposed in the docs UI
 
-// Build ordered groups per platform, preserving insertion order.
-export function groupsFor(platform) {
+// ---------------------------------------------------------------------------
+// Audience split — the docs portal has two panels:
+//   'user'  → the client-key surface a consuming platform calls (register a
+//             player, read progress, claim, purchase, submit scores).
+//   'admin' → the operator/console surface (create / update / delete missions,
+//             ranks, templates, segments, campaigns, settings, …).
+//   'both'  → callable from either side.
+// Assigned by id here so the endpoint objects above stay readable.
+// ---------------------------------------------------------------------------
+const USER_ENDPOINT_IDS = new Set([
+  'gamru-clients-me',
+  'gamru-users-add',
+  'gamru-integration-events',
+  'gamru-players-by-email',
+  'gamru-players-add-xp',
+  'gamru-players-mission-claim',
+  'gamru-players-reward-claim',
+  'gamru-players-shop-purchase',
+  'gamru-tlb-score',
+])
+const BOTH_ENDPOINT_IDS = new Set(['gamru-health', 'gamru-players-get'])
+
+for (const e of ENDPOINTS) {
+  e.audience = BOTH_ENDPOINT_IDS.has(e.id)
+    ? 'both'
+    : USER_ENDPOINT_IDS.has(e.id)
+    ? 'user'
+    : 'admin'
+}
+
+// True when an endpoint should appear for the given audience ('user'|'admin').
+// A 'both' endpoint matches either; no audience means "match all".
+export const matchesAudience = (e, audience) =>
+  !audience || e.audience === audience || e.audience === 'both'
+
+// Build ordered groups per platform (optionally filtered by audience),
+// preserving insertion order.
+export function groupsFor(platform, audience) {
+  const match = (e) => e.platform === platform && matchesAudience(e, audience)
   const seen = []
   for (const e of ENDPOINTS) {
-    if (e.platform !== platform) continue
+    if (!match(e)) continue
     if (!seen.includes(e.group)) seen.push(e.group)
   }
-  return seen.map((g) => ({ group: g, items: ENDPOINTS.filter((e) => e.platform === platform && e.group === g) }))
+  return seen.map((g) => ({ group: g, items: ENDPOINTS.filter((e) => match(e) && e.group === g) }))
 }
 
 export function endpointById(id) {

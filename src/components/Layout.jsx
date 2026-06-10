@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
-import { Boxes, ChevronRight, Github, Menu, Moon, Search, Sun, X } from 'lucide-react'
-import { NAV, TOP_NAV } from '../data/nav'
+import { Boxes, ChevronRight, Github, Menu, Moon, Search, Sun, UserCog, User, X } from 'lucide-react'
+import { PANELS, panelFor } from '../data/panels'
 import { ENDPOINTS, groupsFor } from '../data/endpoints'
-import { FLOWS } from '../data/flows'
 import { MethodBadge } from './primitives'
 import LanguageSelect from './LanguageSelect'
 
@@ -22,21 +21,21 @@ function useDarkMode() {
   return [dark, setDark]
 }
 
-// Lightweight client-side search across flows + endpoints.
-const SEARCH_INDEX = [
-  ...FLOWS.map((f) => ({ label: f.title, sub: 'Flow · ' + f.tag, to: `/flows/${f.id}` })),
-  ...ENDPOINTS.map((e) => ({
+// Client-side search across the endpoints of the ACTIVE panel only.
+function buildSearchIndex(panelKey) {
+  return ENDPOINTS.filter((e) => e.audience === panelKey || e.audience === 'both').map((e) => ({
     label: `${e.method} ${e.path}`,
-    sub: `${e.platform === 'gamru' ? 'Gamru' : 'Games'} · ${e.title}`,
+    sub: e.title,
     to: `/api/${e.platform}/${e.id}`,
-  })),
-]
+  }))
+}
 
-function SearchBox() {
+function SearchBox({ panelKey }) {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
+  const index = buildSearchIndex(panelKey)
   const results = q.trim()
-    ? SEARCH_INDEX.filter((x) => (x.label + ' ' + x.sub).toLowerCase().includes(q.toLowerCase())).slice(0, 8)
+    ? index.filter((x) => (x.label + ' ' + x.sub).toLowerCase().includes(q.toLowerCase())).slice(0, 8)
     : []
   return (
     <div className="relative w-full max-w-xs">
@@ -50,7 +49,7 @@ function SearchBox() {
           }}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder="Search docs & endpoints…"
+          placeholder="Search endpoints…"
           className="w-full bg-transparent outline-none placeholder:text-slate-400"
         />
       </div>
@@ -78,18 +77,16 @@ function SearchBox() {
   )
 }
 
-// Expandable API section: section header -> collapsible endpoint groups ("tabs")
-// -> per-endpoint links that deep-link to the endpoint detail on the API page.
-function ApiNavSection({ section, platform, onNavigate }) {
+// Expandable API section: collapsible endpoint groups -> per-endpoint links.
+function ApiNavSection({ section, platform, audience, onNavigate }) {
   const { pathname } = useLocation()
-  const groups = groupsFor(platform)
+  const groups = groupsFor(platform, audience)
   const base = `/api/${platform}`
   const activeId = pathname.startsWith(base + '/') ? pathname.slice(base.length + 1) : ''
   const activeGroup = groups.find((g) => g.items.some((it) => it.id === activeId))?.group
 
   const [open, setOpen] = useState(() => new Set(activeGroup ? [activeGroup] : []))
 
-  // Keep the group containing the current endpoint expanded as the user navigates.
   useEffect(() => {
     if (activeGroup) setOpen((prev) => (prev.has(activeGroup) ? prev : new Set(prev).add(activeGroup)))
   }, [activeGroup])
@@ -108,22 +105,6 @@ function ApiNavSection({ section, platform, onNavigate }) {
         {section}
       </h4>
       <ul className="space-y-0.5">
-        <li>
-          <NavLink
-            to={base}
-            end
-            onClick={onNavigate}
-            className={({ isActive }) =>
-              `block rounded-lg px-3 py-1.5 transition ${
-                isActive
-                  ? 'bg-gradient-to-r from-brand-50 to-transparent font-semibold text-brand-700 dark:from-brand-500/15 dark:text-brand-300'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-100'
-              }`
-            }
-          >
-            Overview
-          </NavLink>
-        </li>
         {groups.map((g) => {
           const isOpen = open.has(g.group)
           return (
@@ -173,15 +154,16 @@ function ApiNavSection({ section, platform, onNavigate }) {
   )
 }
 
-function Sidebar({ onNavigate }) {
+function Sidebar({ panel, onNavigate }) {
   return (
     <nav className="space-y-7 pb-16 text-sm">
-      {NAV.map((group) =>
+      {panel.nav.map((group) =>
         group.platform ? (
           <ApiNavSection
             key={group.section}
             section={group.section}
             platform={group.platform}
+            audience={group.audience}
             onNavigate={onNavigate}
           />
         ) : (
@@ -195,7 +177,7 @@ function Sidebar({ onNavigate }) {
                 <li key={link.to + link.label}>
                   <NavLink
                     to={link.to}
-                    end={link.to === '/'}
+                    end={link.to === panel.home}
                     onClick={onNavigate}
                     className={({ isActive }) =>
                       `relative block rounded-lg px-3 py-1.5 transition before:absolute before:inset-y-1.5 before:left-0 before:w-1 before:rounded-full before:bg-gradient-to-b before:from-brand-500 before:to-brand-700 before:transition-opacity ${
@@ -217,10 +199,39 @@ function Sidebar({ onNavigate }) {
   )
 }
 
+// The User / Admin switcher — the heart of the two-panel split.
+function PanelSwitch() {
+  const { pathname } = useLocation()
+  const active = panelFor(pathname).key
+  const item = (key, Icon, label) => (
+    <Link
+      to={PANELS[key].home}
+      className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+        active === key
+          ? key === 'admin'
+            ? 'bg-rose-600 text-white shadow-sm'
+            : 'bg-brand-600 text-white shadow-sm'
+          : 'text-slate-600 hover:bg-white hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+      }`}
+    >
+      <Icon size={14} />
+      {label}
+    </Link>
+  )
+  return (
+    <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-700 dark:bg-slate-800/60">
+      {item('user', User, 'User')}
+      {item('admin', UserCog, 'Admin')}
+    </div>
+  )
+}
+
 export default function Layout({ children }) {
   const [dark, setDark] = useDarkMode()
   const [mobileOpen, setMobileOpen] = useState(false)
   const { pathname } = useLocation()
+  const isLanding = pathname === '/'
+  const panel = panelFor(pathname)
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -231,10 +242,12 @@ export default function Layout({ children }) {
     <div className="min-h-screen">
       {/* top bar */}
       <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/70 shadow-sm shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/70 dark:shadow-black/20">
-        <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-4 px-4">
-          <button className="lg:hidden" onClick={() => setMobileOpen((v) => !v)} aria-label="Toggle menu">
-            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+        <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-3 px-4">
+          {!isLanding && (
+            <button className="lg:hidden" onClick={() => setMobileOpen((v) => !v)} aria-label="Toggle menu">
+              {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          )}
           <Link to="/" className="group flex items-center gap-2.5">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lg shadow-brand-600/30 ring-1 ring-white/20 transition group-hover:scale-105">
               <Boxes size={18} />
@@ -248,29 +261,38 @@ export default function Layout({ children }) {
             </span>
           </Link>
 
-          <nav className="ml-6 hidden items-center gap-1 md:flex">
-            {TOP_NAV.map((t) => (
-              <NavLink
-                key={t.to + t.label}
-                to={t.to}
-                end={t.to === '/'}
-                className={({ isActive }) =>
-                  `relative rounded-md px-3 py-1.5 text-sm font-medium transition after:absolute after:inset-x-3 after:-bottom-px after:h-0.5 after:rounded-full after:bg-gradient-to-r after:from-brand-500 after:to-brand-700 after:transition-opacity ${
-                    isActive
-                      ? 'text-brand-700 after:opacity-100 dark:text-brand-300'
-                      : 'text-slate-600 after:opacity-0 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-                  }`
-                }
-              >
-                {t.label}
-              </NavLink>
-            ))}
-          </nav>
+          {/* the panel switcher */}
+          <div className="ml-3 hidden sm:block">
+            <PanelSwitch />
+          </div>
+
+          {!isLanding && (
+            <nav className="ml-4 hidden items-center gap-1 lg:flex">
+              {panel.top.map((t) => (
+                <NavLink
+                  key={t.to + t.label}
+                  to={t.to}
+                  end={t.to === panel.home}
+                  className={({ isActive }) =>
+                    `relative rounded-md px-3 py-1.5 text-sm font-medium transition after:absolute after:inset-x-3 after:-bottom-px after:h-0.5 after:rounded-full after:bg-gradient-to-r after:from-brand-500 after:to-brand-700 after:transition-opacity ${
+                      isActive
+                        ? 'text-brand-700 after:opacity-100 dark:text-brand-300'
+                        : 'text-slate-600 after:opacity-0 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                    }`
+                  }
+                >
+                  {t.label}
+                </NavLink>
+              ))}
+            </nav>
+          )}
 
           <div className="ml-auto flex items-center gap-3">
-            <div className="hidden sm:block">
-              <SearchBox />
-            </div>
+            {!isLanding && (
+              <div className="hidden sm:block">
+                <SearchBox panelKey={panel.key} />
+              </div>
+            )}
             <LanguageSelect />
             <button
               onClick={() => setDark((v) => !v)}
@@ -281,37 +303,45 @@ export default function Layout({ children }) {
             </button>
           </div>
         </div>
+        {/* mobile panel switch */}
+        <div className="border-t border-slate-200/70 px-4 py-2 dark:border-white/10 sm:hidden">
+          <PanelSwitch />
+        </div>
       </header>
 
-      <div className="mx-auto flex max-w-[1400px]">
-        {/* sidebar (desktop) */}
-        <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-72 shrink-0 overflow-y-auto border-r border-slate-200/70 bg-gradient-to-b from-slate-50/50 to-transparent px-3 py-6 dark:border-white/10 dark:from-slate-900/40 lg:block">
-          <Sidebar />
-        </aside>
+      {isLanding ? (
+        <main className="mx-auto max-w-[1400px] px-5 py-10 sm:px-8 lg:px-12">{children}</main>
+      ) : (
+        <div className="mx-auto flex max-w-[1400px]">
+          {/* sidebar (desktop) */}
+          <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-72 shrink-0 overflow-y-auto border-r border-slate-200/70 bg-gradient-to-b from-slate-50/50 to-transparent px-3 py-6 dark:border-white/10 dark:from-slate-900/40 lg:block">
+            <Sidebar panel={panel} />
+          </aside>
 
-        {/* sidebar (mobile drawer) */}
-        {mobileOpen && (
-          <div className="fixed inset-0 z-30 lg:hidden">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
-            <aside className="absolute left-0 top-16 h-[calc(100vh-4rem)] w-72 overflow-y-auto border-r border-slate-200 bg-white px-3 py-6 dark:border-slate-800 dark:bg-slate-950">
-              <Sidebar onNavigate={() => setMobileOpen(false)} />
-            </aside>
-          </div>
-        )}
-
-        {/* content */}
-        <main className="min-w-0 flex-1 px-5 py-10 sm:px-8 lg:px-12">
-          <div className="mx-auto max-w-4xl">{children}</div>
-          <footer className="mx-auto mt-20 max-w-4xl border-t border-slate-200 pt-6 text-sm text-slate-400 dark:border-slate-800">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <span>Gamru Docs · gamification engine + games-platform integration</span>
-              <span className="inline-flex items-center gap-1.5">
-                <Github size={14} /> internal developer portal
-              </span>
+          {/* sidebar (mobile drawer) */}
+          {mobileOpen && (
+            <div className="fixed inset-0 z-30 lg:hidden">
+              <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
+              <aside className="absolute left-0 top-16 h-[calc(100vh-4rem)] w-72 overflow-y-auto border-r border-slate-200 bg-white px-3 py-6 dark:border-slate-800 dark:bg-slate-950">
+                <Sidebar panel={panel} onNavigate={() => setMobileOpen(false)} />
+              </aside>
             </div>
-          </footer>
-        </main>
-      </div>
+          )}
+
+          {/* content */}
+          <main className="min-w-0 flex-1 px-5 py-10 sm:px-8 lg:px-12">
+            <div className="mx-auto max-w-4xl">{children}</div>
+            <footer className="mx-auto mt-20 max-w-4xl border-t border-slate-200 pt-6 text-sm text-slate-400 dark:border-slate-800">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span>Gamru Docs · {panel.key === 'admin' ? 'admin — manage Gamru' : 'user — use Gamru'}</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Github size={14} /> internal developer portal
+                </span>
+              </div>
+            </footer>
+          </main>
+        </div>
+      )}
     </div>
   )
 }

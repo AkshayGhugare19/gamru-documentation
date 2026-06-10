@@ -8,7 +8,7 @@ export const PLATFORM_META = {
   gamru: {
     title: 'Gamru engine API',
     sub: 'gamru-backend',
-    base: 'https://engine.gamru.io',
+    base: 'https://gamru-backend-2.onrender.com',
     blurb:
       'The gamification engine and operator API. Operator/console endpoints use a JWT; service-to-service endpoints (called by your games platform) use the client key. Base path is /api.',
   },
@@ -21,13 +21,22 @@ export const PLATFORM_META = {
   },
 }
 
-export default function ApiPage({ platform }) {
+const AUDIENCE_BLURB = {
+  user: 'The endpoints YOUR platform calls server-to-server with your client key — register a player, read their progress, claim missions & rewards, spend tokens, submit scores. Base path is /api.',
+  admin:
+    'The operator console surface — create / update / delete missions, mission bundles, ranks, rules, the reward shop, tournaments, templates, segments, campaigns, clients and settings. Most endpoints need an operator JWT. Base path is /api.',
+}
+
+export default function ApiPage({ platform, audience }) {
   const meta = PLATFORM_META[platform]
-  const groups = groupsFor(platform)
+  const groups = groupsFor(platform, audience)
   const [activeGroup, setActiveGroup] = useState(groups[0]?.group)
 
-  const endpointCount = ENDPOINTS.filter((e) => e.platform === platform).length
-  const usedAuth = [...new Set(ENDPOINTS.filter((e) => e.platform === platform).map((e) => e.auth))]
+  const inScope = (e) => e.platform === platform && (!audience || e.audience === audience || e.audience === 'both')
+  const endpointCount = ENDPOINTS.filter(inScope).length
+  const usedAuth = [...new Set(ENDPOINTS.filter(inScope).map((e) => e.auth))]
+  const blurb = (audience && AUDIENCE_BLURB[audience]) || meta.blurb
+  const title = audience === 'admin' ? 'Gamru admin API' : audience === 'user' ? 'Gamru user API' : meta.title
 
   return (
     <div>
@@ -41,8 +50,8 @@ export default function ApiPage({ platform }) {
             <Server size={20} />
           </span>
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">{meta.title}</h1>
-            <p className="mt-2 max-w-2xl leading-7 text-slate-600 dark:text-slate-300">{meta.blurb}</p>
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">{title}</h1>
+            <p className="mt-2 max-w-2xl leading-7 text-slate-600 dark:text-slate-300">{blurb}</p>
           </div>
         </div>
 

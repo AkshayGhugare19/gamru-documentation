@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light dark;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
+/* Keep Google Translate from injecting its banner / shifting the page */
+.skiptranslate,
+.goog-te-banner-frame,
+#goog-gt-tt {
+  display: none !important;
+}
+body {
+  top: 0 !important;
+}
+
+body {
+  @apply bg-slate-50 text-slate-800 antialiased dark:bg-slate-950 dark:text-slate-200;
+}
+
+/* Thin scrollbars to match a docs feel */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.4) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 116, 139, 0.4);
+  border-radius: 9999px;
+}
+
+/* Prose-ish content defaults used across doc pages */
+.doc-content h2 {
+  @apply mt-12 mb-4 scroll-mt-24 text-2xl font-bold tracking-tight text-slate-900 dark:text-white;
+}
+.doc-content h3 {
+  @apply mt-8 mb-3 scroll-mt-24 text-lg font-semibold text-slate-900 dark:text-white;
+}
+.doc-content p {
+  @apply my-4 leading-7 text-slate-600 dark:text-slate-300;
+}
+.doc-content ul {
+  @apply my-4 list-disc space-y-2 pl-6 text-slate-600 dark:text-slate-300;
+}
+.doc-content ol {
+  @apply my-4 list-decimal space-y-2 pl-6 text-slate-600 dark:text-slate-300;
+}
+.doc-content a {
+  @apply font-medium text-brand-600 hover:underline dark:text-brand-400;
+}
+.doc-content code {
+  @apply rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[0.85em] text-brand-700 dark:bg-slate-800 dark:text-brand-300;
+}
+.doc-content strong {
+  @apply font-semibold text-slate-900 dark:text-white;
+}

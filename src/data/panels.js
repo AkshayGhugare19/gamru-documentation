@@ -12,6 +12,11 @@
 // Each panel owns its own home, top links, sidebar nav and endpoint reference.
 // ---------------------------------------------------------------------------
 
+import { PAGE_WIDGETS, INLINE_WIDGETS } from './widgets'
+
+// One sidebar link per widget type → its own detail page (UI + code).
+const widgetLinks = (list) => list.map((w) => ({ label: w.label, to: `/user/widgets/${w.type}` }))
+
 export const PANELS = {
   user: {
     key: 'user',
@@ -32,6 +37,14 @@ export const PANELS = {
           { label: 'Integrate your platform', to: '/user/integrate' },
           { label: 'API — what you call', to: '/user/api' },
         ],
+      },
+      {
+        section: 'Widgets',
+        links: [{ label: 'Overview & setup', to: '/user/widgets' }, ...widgetLinks(PAGE_WIDGETS)],
+      },
+      {
+        section: 'Widgets — Gamification data',
+        links: widgetLinks(INLINE_WIDGETS),
       },
       {
         section: 'Endpoint reference',
@@ -59,6 +72,10 @@ export const PANELS = {
           { label: 'Overview', to: '/admin' },
           { label: 'Manage by resource', to: '/admin/api' },
         ],
+      },
+      {
+        section: 'Widgets',
+        links: [{ label: 'Create & manage widgets', to: '/admin/widgets' }],
       },
       {
         section: 'Endpoint reference',

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ArrowRight, UserCog, Sparkles, Megaphone, Boxes, Settings } from 'lucide-react'
+import { ArrowRight, UserCog, Sparkles, Megaphone, Boxes, Settings, LayoutTemplate } from 'lucide-react'
 import { groupsFor } from '../../data/endpoints'
 
 const HIGHLIGHTS = [
@@ -23,6 +23,12 @@ const HIGHLIGHTS = [
     icon: Settings,
     title: 'Tune the engine',
     blurb: 'Manage panel settings, casino/sport catalogs and media assets that the whole platform draws from.',
+  },
+  {
+    icon: LayoutTemplate,
+    title: 'Build embeddable widgets',
+    blurb: 'Turn any feature into a drop-in iframe widget: pick a client + type, control status / expiry / domains, theme it in a live preview, and hand over the snippet.',
+    to: '/admin/widgets',
   },
 ]
 
@@ -63,16 +69,29 @@ export default function AdminHome() {
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         {HIGHLIGHTS.map((h) => {
           const Icon = h.icon
-          return (
-            <div
-              key={h.title}
-              className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
-            >
+          const inner = (
+            <>
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500/15 to-rose-600/5 text-rose-600 dark:text-rose-300">
                 <Icon size={20} />
               </span>
               <h3 className="mt-3 font-semibold text-slate-900 dark:text-white">{h.title}</h3>
               <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{h.blurb}</p>
+            </>
+          )
+          return h.to ? (
+            <Link
+              key={h.title}
+              to={h.to}
+              className="block rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-rose-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-rose-500/40"
+            >
+              {inner}
+            </Link>
+          ) : (
+            <div
+              key={h.title}
+              className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
+            >
+              {inner}
             </div>
           )
         })}

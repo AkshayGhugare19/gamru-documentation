@@ -71,6 +71,10 @@ export const ADMIN_GROUP_META = {
     icon: 'Database',
     note: 'Register casino games, providers and categories (sports catalogs share the same shape).',
   },
+  Widgets: {
+    icon: 'LayoutTemplate',
+    note: 'Create, update and retire embeddable iframe widgets (Settings → Widget / iFrame Setup). Each config binds a client + widget type, controls access (status / expiry / allowed_domains) and carries the look-and-feel (appearance). The public /validate and /list routes serve the embeds.',
+  },
   'System Settings': {
     icon: 'Settings',
     note: 'Bulk-upsert panel settings: core, gamification, mission, crm, platform and widgets.',

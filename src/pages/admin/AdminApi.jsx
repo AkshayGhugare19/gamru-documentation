@@ -16,6 +16,7 @@ import {
   Database,
   Settings,
   Image,
+  LayoutTemplate,
   Server,
 } from 'lucide-react'
 import { MethodBadge, AuthBadge } from '../../components/primitives'
@@ -38,6 +39,7 @@ const ICONS = {
   Database,
   Settings,
   Image,
+  LayoutTemplate,
 }
 
 function slug(s) {

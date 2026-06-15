@@ -535,6 +535,87 @@ const gamru = [
     ]},
     response: { status: 201, example: j({ success: true, data: { id: 'uuid', url: 'https://cdn/.../banner.png' } }) },
   },
+
+  // ---- Widgets: public (embed) surface ----
+  {
+    id: 'gamru-widget-validate',
+    platform: 'gamru', group: 'Widgets', method: 'GET', path: '/api/widget/validate',
+    title: 'Validate a widget', auth: 'client',
+    summary: 'Public route called from INSIDE the embedded iframe before it renders. Verifies the auth key, optional clientId, the widget type, and (if a config exists for that client+type) its status / expiry / allowed_domains. The auth key may be sent as ?authKey= or the x-client-auth-key header.',
+    query: { fields: [
+      { name: 'authKey', type: 'string', required: true, desc: 'client auth_key (or x-client-auth-key header)' },
+      { name: 'clientId', type: 'string', required: false, desc: 'slug / skin_id / id' },
+      { name: 'type', type: 'string', required: false, desc: 'widget type being rendered' },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Widget validated', data: { validated: true, widget_type: 'mission', widget_config_id: 'uuid', appearance: { theme: 'dark', accent_color: '#7c5cff' } } }) },
+  },
+  {
+    id: 'gamru-widget-list',
+    platform: 'gamru', group: 'Widgets', method: 'GET', path: '/api/widget/list',
+    title: 'List a client’s active widgets', auth: 'client',
+    summary: 'Public route the embedding site calls to discover which widgets the operator turned ON. Returns the client’s ACTIVE widget configs so the page can render exactly those (the “create-driven” Widgets tab). CORS is open.',
+    query: { fields: [
+      { name: 'authKey', type: 'string', required: true, desc: 'client auth_key (or x-client-auth-key header)' },
+      { name: 'clientId', type: 'string', required: false },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Widgets fetched successfully', data: [{ id: 'uuid', type: 'points', name: 'Header stats', appearance: {} }, { id: 'uuid', type: 'mission', name: 'Missions board', appearance: {} }] }) },
+  },
+
+  // ---- Widgets: admin CRUD (widget_configurations) ----
+  {
+    id: 'gamru-widget-configs-list',
+    platform: 'gamru', group: 'Widgets', method: 'GET', path: '/api/widget/configurations',
+    title: 'List widget configurations', auth: 'admin',
+    summary: 'Paginated list of the widgets created in Settings → Widget / iFrame Setup, filterable by client, type and status.',
+    query: { fields: [
+      { name: 'page / limit', type: 'number', desc: 'default 1 / 10 (max 100)' },
+      { name: 'search', type: 'string' },
+      { name: 'status', type: "'ACTIVE' | 'INACTIVE'" },
+      { name: 'type', type: 'string' },
+      { name: 'client_id', type: 'uuid' },
+    ]},
+    response: { status: 200, example: j({ success: true, data: [{ id: 'uuid', client_id: 'uuid', name: 'Missions board', type: 'mission', status: 'ACTIVE' }], pagination: { total: 1, page: 1, limit: 10, totalPages: 1 } }) },
+  },
+  {
+    id: 'gamru-widget-configs-create',
+    platform: 'gamru', group: 'Widgets', method: 'POST', path: '/api/widget/configurations',
+    title: 'Create a widget', auth: 'admin',
+    summary: 'Create an embeddable widget for a client + type. status, expiry_date and allowed_domains control access; appearance holds the full look-and-feel (theme, colours, layout, size).',
+    body: { fields: [
+      { name: 'client_id', type: 'uuid', required: true },
+      { name: 'name', type: 'string', required: true, desc: '2–120 chars' },
+      { name: 'type', type: 'enum', required: true, desc: 'mission | tournament | reward-shop | rewards | campaign | rankings | profile | status | progress | points | avatar | tokens | badge-level' },
+      { name: 'status', type: "'ACTIVE' | 'INACTIVE'", required: false, desc: 'default ACTIVE' },
+      { name: 'expiry_date', type: 'ISO date | null', required: false },
+      { name: 'allowed_domains', type: 'string[] | null', required: false },
+      { name: 'appearance', type: 'object | null', required: false, desc: 'theme, accent_color, colours, radius, spacing, layout, align, width, size, mobile…' },
+    ]},
+    response: { status: 201, example: j({ success: true, message: 'Widget created successfully', data: { id: 'uuid', client_id: 'uuid', name: 'Missions board', type: 'mission', status: 'ACTIVE' } }) },
+  },
+  {
+    id: 'gamru-widget-configs-update',
+    platform: 'gamru', group: 'Widgets', method: 'POST', path: '/api/widget/configurations/:id',
+    title: 'Update a widget', auth: 'admin',
+    summary: 'Patch any field of a widget configuration (name, type, status, expiry, allowed_domains, appearance). At least one field required.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Widget updated successfully', data: { id: 'uuid', name: 'Missions board (v2)' } }) },
+  },
+  {
+    id: 'gamru-widget-configs-toggle',
+    platform: 'gamru', group: 'Widgets', method: 'POST', path: '/api/widget/configurations/:id/toggle-status',
+    title: 'Toggle widget status', auth: 'admin',
+    summary: 'Flip a widget between ACTIVE and INACTIVE. An INACTIVE widget fails validation, so it stops rendering everywhere it’s embedded.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Widget status updated', data: { id: 'uuid', status: 'INACTIVE' } }) },
+  },
+  {
+    id: 'gamru-widget-configs-delete',
+    platform: 'gamru', group: 'Widgets', method: 'DELETE', path: '/api/widget/configurations/:id',
+    title: 'Delete a widget', auth: 'admin',
+    summary: 'Permanently remove a widget configuration. Existing embeds fall back to client-level domain rules (or stop validating if none).',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Widget deleted successfully', data: null }) },
+  },
 ]
 
 // ===========================================================================

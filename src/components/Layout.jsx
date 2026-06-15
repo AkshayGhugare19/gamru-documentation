@@ -178,7 +178,7 @@ function Sidebar({ panel, onNavigate }) {
                 <li key={link.to + link.label}>
                   <NavLink
                     to={link.to}
-                    end={link.to === panel.home}
+                    end
                     onClick={onNavigate}
                     className={({ isActive }) =>
                       `relative block rounded-lg px-3 py-1.5 transition before:absolute before:inset-y-1.5 before:left-0 before:w-1 before:rounded-full before:bg-gradient-to-b before:from-brand-500 before:to-brand-700 before:transition-opacity ${

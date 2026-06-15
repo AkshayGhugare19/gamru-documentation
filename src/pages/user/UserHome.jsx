@@ -99,6 +99,12 @@ export default function UserHome() {
             Integrate your platform <ArrowRight size={16} />
           </Link>
           <Link
+            to="/user/widgets"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-5 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Embed widgets
+          </Link>
+          <Link
             to="/user/api"
             className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-5 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
           >

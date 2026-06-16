@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Server } from 'lucide-react'
-import { groupsFor, ENDPOINTS, AUTH } from '../data/endpoints'
+import { referenceGroupsFor, inReference, ENDPOINTS, AUTH } from '../data/endpoints'
 import { MethodBadge, AuthBadge } from '../components/primitives'
 
 export const PLATFORM_META = {
@@ -22,17 +22,17 @@ export const PLATFORM_META = {
 }
 
 const AUDIENCE_BLURB = {
-  user: 'The endpoints YOUR platform calls server-to-server with your client key — register a player, read their progress, claim missions & rewards, spend tokens, submit scores. Base path is /api.',
+  user: 'Everything a player-facing platform calls. Gamru endpoints are server-to-server with your client key (register a player, read progress, claim rewards, spend tokens). The Missions & Tournaments groups are the PLAYER routes on the games platform (player JWT): list, join, claim, cancel, submit scores, leaderboards & history. Each card shows its own base URL.',
   admin:
-    'The operator console surface — create / update / delete missions, mission bundles, ranks, rules, the reward shop, tournaments, templates, segments, campaigns, clients and settings. Most endpoints need an operator JWT. Base path is /api.',
+    'The full Gamru engine surface — every Gamru-platform endpoint: the operator console (create / update / delete missions, bundles, ranks, rules, the reward shop, tournaments, templates, segments, campaigns, clients, settings) plus the service-to-service endpoints your platform integrates against. Base path is /api.',
 }
 
 export default function ApiPage({ platform, audience }) {
   const meta = PLATFORM_META[platform]
-  const groups = groupsFor(platform, audience)
+  const groups = referenceGroupsFor(audience)
   const [activeGroup, setActiveGroup] = useState(groups[0]?.group)
 
-  const inScope = (e) => e.platform === platform && (!audience || e.audience === audience || e.audience === 'both')
+  const inScope = (e) => inReference(e, audience)
   const endpointCount = ENDPOINTS.filter(inScope).length
   const usedAuth = [...new Set(ENDPOINTS.filter(inScope).map((e) => e.auth))]
   const blurb = (audience && AUDIENCE_BLURB[audience]) || meta.blurb

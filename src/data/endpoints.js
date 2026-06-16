@@ -9,6 +9,8 @@
 //   response.example is a JSON string shown in the right-hand panel.
 // ---------------------------------------------------------------------------
 
+import { PLAYER_MISSION_ENDPOINTS, PLAYER_TOURNAMENT_ENDPOINTS } from './playerApi'
+
 export const AUTH = {
   none: { key: 'none', label: 'Public', color: 'slate', hint: 'no auth' },
   jwt: { key: 'jwt', label: 'JWT (operator)', color: 'emerald', hint: 'operator console token' },
@@ -341,6 +343,249 @@ const gamru = [
     ]},
     body: { fields: [{ name: 'archived', type: 'boolean', required: true }] },
     response: { status: 200, example: j({ success: true, data: { id: 'uuid', archived: true } }) },
+  },
+
+  // ---- Missions (authoring) — the concrete :feature=missions surface ----
+  // These are the gamification router bound to feature "missions". They are the
+  // operator endpoints that AUTHOR the missions players then see/join/claim on
+  // the games platform. The mission-specific config lives in the `data` blob;
+  // the games backend reads exactly these keys (see GamruMissionData).
+  {
+    id: 'gamru-missions-paginate',
+    platform: 'gamru', group: 'Missions', method: 'GET', path: '/api/gamification/missions/paginate',
+    title: 'List missions', auth: 'jwt',
+    summary: 'Paginated mission grid for the console. Filter by search (name), status (ACTIVE/INACTIVE), tag, and archived. This is the missions view of the shared gamification router.',
+    query: { fields: [
+      { name: 'page', type: 'number', desc: 'default 1' },
+      { name: 'limit', type: 'number', desc: 'default 25 (max 100)' },
+      { name: 'search', type: 'string', desc: 'matches the mission name' },
+      { name: 'status', type: "'ACTIVE' | 'INACTIVE'" },
+      { name: 'archived', type: 'boolean', desc: 'true to list archived' },
+      { name: 'tag', type: 'string' },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Mission fetched successfully', data: [{ id: 'uuid', name: 'High Roller Slots', status: 'ACTIVE', priority: 1, tags: ['weekly', 'slots'], data: { category: 'Slots', objective_type: 'wager', objective_target: 15000 } }], total: 1, page: 1, limit: 25 }) },
+  },
+  {
+    id: 'gamru-missions-get',
+    platform: 'gamru', group: 'Missions', method: 'GET', path: '/api/gamification/missions/:id',
+    title: 'Get mission', auth: 'jwt',
+    summary: 'Fetch a single mission with its full `data` blob — use it to populate the mission editor. 404 if no mission has that id.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Mission fetched successfully', data: { id: 'uuid', name: 'High Roller Slots', description: 'Wager big on slots this week.', status: 'ACTIVE', priority: 1, tags: ['weekly', 'slots'], archived: false, data: { category: 'Slots', objective_type: 'wager', measure: 'amount', objective_target: 15000, objective_game_category: 'slots', games: ['starburst'], min_bet: 1, vip: false, duration_days: 7, large_image: 'https://cdn/.../m.png', start_date: '2026-06-10', end_date: '2026-06-17', reward_type: 'bonus_cash', reward_amount: 50, reward_label: '50 Bonus Bets x $2', max_bonus: 100, bonus_wagering: 'Excluded', deposit_required: false, wagering_required: true } } }) },
+    errors: [{ code: '404 Mission not found', when: 'No mission with that id.' }],
+  },
+  {
+    id: 'gamru-missions-add',
+    platform: 'gamru', group: 'Missions', method: 'POST', path: '/api/gamification/missions/add',
+    title: 'Create mission', auth: 'jwt',
+    summary: 'Author a new mission. Top-level fields are the wrapper; everything mission-specific (objective, sub-conditions, reward chest, schedule, art) lives in the `data` blob. Set status ACTIVE to make it live. NOTE: a mission needs data.objective_target > 0 or players can’t join it.',
+    body: { fields: [
+      { name: 'name', type: 'string', required: true, desc: '1–200 chars' },
+      { name: 'description', type: 'string', required: false },
+      { name: 'status', type: "'ACTIVE' | 'INACTIVE'", required: false, desc: 'default INACTIVE until published' },
+      { name: 'priority', type: 'number', required: false, desc: 'display order' },
+      { name: 'tags', type: 'string[]', required: false },
+      { name: 'data.category', type: 'string', required: false, desc: 'display category & bucket — anything matching /sport/i is the Sport bucket, else Casino' },
+      { name: 'data.objective_type', type: 'string', required: false, desc: 'wager | bet_count | win | login | deposit' },
+      { name: 'data.measure', type: "'count' | 'amount'", required: false, desc: 'count ticks +1 per play; amount adds turnover/win' },
+      { name: 'data.objective_target', type: 'number', required: false, desc: 'goal to reach — must be > 0' },
+      { name: 'data.condition_label', type: 'string', required: false, desc: 'override the auto label (e.g. “Wager $15 000”)' },
+      { name: 'data.objective_game_category', type: 'string', required: false, desc: 'restrict to a game category' },
+      { name: 'data.games', type: 'string[]', required: false, desc: 'restrict to specific game route keys (empty = all)' },
+      { name: 'data.min_bet', type: 'number', required: false, desc: 'min stake for a play to count' },
+      { name: 'data.min_multiplier', type: 'number', required: false },
+      { name: 'data.bet_currency', type: 'string', required: false, desc: 'default “All Currencies”' },
+      { name: 'data.vip', type: 'boolean', required: false },
+      { name: 'data.duration_days', type: 'number', required: false },
+      { name: 'data.large_image / data.small_image', type: 'string', required: false, desc: 'mission art' },
+      { name: 'data.start_date / data.end_date', type: 'string', required: false },
+      { name: 'data.reward_type', type: 'string', required: false, desc: 'bonus_cash | free_spins | xp | tokens …' },
+      { name: 'data.reward_amount', type: 'number', required: false },
+      { name: 'data.reward_label', type: 'string', required: false, desc: 'player-facing chest label' },
+      { name: 'data.max_bonus', type: 'number', required: false },
+      { name: 'data.bonus_wagering', type: 'string', required: false },
+      { name: 'data.deposit_required / data.wagering_required', type: 'boolean', required: false },
+      { name: 'data.more_details', type: 'string', required: false },
+    ]},
+    bodyExample: {
+      name: 'High Roller Slots',
+      description: 'Wager big on slots this week.',
+      status: 'ACTIVE',
+      priority: 1,
+      tags: ['weekly', 'slots'],
+      data: {
+        category: 'Slots',
+        objective_type: 'wager',
+        measure: 'amount',
+        objective_target: 15000,
+        objective_game_category: 'slots',
+        games: ['starburst', 'gates-of-olympus'],
+        min_bet: 1,
+        vip: false,
+        duration_days: 7,
+        large_image: 'https://cdn/.../high-roller.png',
+        start_date: '2026-06-10',
+        end_date: '2026-06-17',
+        reward_type: 'bonus_cash',
+        reward_amount: 50,
+        reward_label: '50 Bonus Bets x $2',
+        max_bonus: 100,
+        bonus_wagering: 'Excluded',
+        deposit_required: false,
+        wagering_required: true,
+      },
+    },
+    response: { status: 201, example: j({ success: true, message: 'Mission created successfully', data: { id: 'uuid', name: 'High Roller Slots', status: 'ACTIVE' } }) },
+    errors: [{ code: '400 Name is required', when: 'name missing/empty.' }],
+  },
+  {
+    id: 'gamru-missions-update',
+    platform: 'gamru', group: 'Missions', method: 'POST', path: '/api/gamification/missions/update-by/:id',
+    title: 'Update mission', auth: 'jwt',
+    summary: 'Edit a mission. Send the full payload (same shape as create) — the `data` blob is replaced, so include every field you want to keep. Players reading the live catalog pick up the change on their next fetch.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    body: { fields: [
+      { name: 'name', type: 'string', required: true },
+      { name: 'description', type: 'string', required: false },
+      { name: 'status', type: "'ACTIVE' | 'INACTIVE'", required: false },
+      { name: 'priority', type: 'number', required: false },
+      { name: 'tags', type: 'string[]', required: false },
+      { name: 'data', type: 'object', required: false, desc: 'full mission config (see Create mission for every key)' },
+    ]},
+    bodyExample: { name: 'High Roller Slots (v2)', status: 'ACTIVE', data: { objective_type: 'wager', measure: 'amount', objective_target: 20000, reward_type: 'bonus_cash', reward_amount: 75 } },
+    response: { status: 200, example: j({ success: true, message: 'Mission updated successfully', data: { id: 'uuid', name: 'High Roller Slots (v2)' } }) },
+    errors: [{ code: '404 Mission not found', when: 'No mission with that id.' }],
+  },
+  {
+    id: 'gamru-missions-archive',
+    platform: 'gamru', group: 'Missions', method: 'POST', path: '/api/gamification/missions/archive-by/:id',
+    title: 'Archive / restore mission', auth: 'jwt',
+    summary: 'Soft-delete a mission (archived=true) so it’s hidden from players but still queryable; send archived=false to restore it.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    body: { fields: [{ name: 'archived', type: 'boolean', required: true }] },
+    bodyExample: { archived: true },
+    response: { status: 200, example: j({ success: true, message: 'Mission updated successfully', data: { id: 'uuid', archived: true } }) },
+  },
+  {
+    id: 'gamru-missions-delete',
+    platform: 'gamru', group: 'Missions', method: 'DELETE', path: '/api/gamification/missions/:id',
+    title: 'Delete mission', auth: 'jwt',
+    summary: 'Permanently remove a mission. Prefer Archive unless you really need it gone — players’ past participation references the mission id.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Mission deleted successfully', data: null }) },
+  },
+
+  // ---- Tournaments (authoring) — the concrete :feature=tournaments surface ----
+  // Operator endpoints that AUTHOR tournaments. The games backend reads these
+  // `data` keys (see GamruTournamentData) to render and score them; scores are
+  // posted back through the Tournament Leaderboard endpoints below.
+  {
+    id: 'gamru-tournaments-paginate',
+    platform: 'gamru', group: 'Tournaments', method: 'GET', path: '/api/gamification/tournaments/paginate',
+    title: 'List tournaments', auth: 'jwt',
+    summary: 'Paginated tournament grid for the console (search, status, tag, archived). The tournaments view of the shared gamification router.',
+    query: { fields: [
+      { name: 'page', type: 'number', desc: 'default 1' },
+      { name: 'limit', type: 'number', desc: 'default 25 (max 100)' },
+      { name: 'search', type: 'string' },
+      { name: 'status', type: "'ACTIVE' | 'INACTIVE'" },
+      { name: 'archived', type: 'boolean' },
+      { name: 'tag', type: 'string' },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Tournament fetched successfully', data: [{ id: 'uuid', name: 'Weekend Slots Race', status: 'ACTIVE', tags: ['weekend'], data: { industry: 'Casino', prize_pool: 1000 } }], total: 1, page: 1, limit: 25 }) },
+  },
+  {
+    id: 'gamru-tournaments-get',
+    platform: 'gamru', group: 'Tournaments', method: 'GET', path: '/api/gamification/tournaments/:id',
+    title: 'Get tournament', auth: 'jwt',
+    summary: 'Fetch a single tournament with its full `data` blob — populates the tournament editor. 404 if not found.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Tournament fetched successfully', data: { id: 'uuid', name: 'Weekend Slots Race', description: 'Climb the board on slots all weekend.', status: 'ACTIVE', tags: ['weekend'], archived: false, data: { industry: 'Casino', tournament_type: 'leaderboard', games: ['starburst', 'gates-of-olympus'], period: 'WEEKLY', min_bet: 1, buy_in: null, start_date: '2026-06-13', end_date: '2026-06-16', leaderboard_size: 100, prize_pool: 1000, eligibility_type: 'all', large_image: 'https://cdn/.../race.png' } } }) },
+    errors: [{ code: '404 Tournament not found', when: 'No tournament with that id.' }],
+  },
+  {
+    id: 'gamru-tournaments-add',
+    platform: 'gamru', group: 'Tournaments', method: 'POST', path: '/api/gamification/tournaments/add',
+    title: 'Create tournament', auth: 'jwt',
+    summary: 'Author a time-boxed leaderboard. Tournament-specific config lives in `data`. There is no player join step — a player lands on the board the moment they score (via the games platform → Tournament Leaderboard). The games side splits prize_pool 50/30/20 to the top-3 when the tournament ends.',
+    body: { fields: [
+      { name: 'name', type: 'string', required: true, desc: '1–200 chars' },
+      { name: 'description', type: 'string', required: false },
+      { name: 'status', type: "'ACTIVE' | 'INACTIVE'", required: false },
+      { name: 'priority', type: 'number', required: false },
+      { name: 'tags', type: 'string[]', required: false },
+      { name: 'data.industry', type: "'Casino' | 'Sports'", required: false },
+      { name: 'data.tournament_type', type: 'string', required: false },
+      { name: 'data.games', type: 'string[]', required: false, desc: 'eligible game route keys — a score from another game is ignored' },
+      { name: 'data.period', type: 'string', required: false, desc: 'e.g. WEEKLY' },
+      { name: 'data.min_bet', type: 'number', required: false },
+      { name: 'data.max_bets', type: 'number', required: false },
+      { name: 'data.buy_in', type: 'number', required: false },
+      { name: 'data.opt_in', type: 'boolean', required: false },
+      { name: 'data.start_date / data.end_date', type: 'string', required: false, desc: 'drives SCHEDULED → IN_PROGRESS → ENDED' },
+      { name: 'data.leaderboard_size', type: 'number', required: false, desc: 'rows shown on the board' },
+      { name: 'data.prize_pool', type: 'number', required: false, desc: 'split 50/30/20 to top-3 on end' },
+      { name: 'data.eligibility_type', type: 'string', required: false, desc: 'e.g. all | segment' },
+      { name: 'data.segment', type: 'string', required: false },
+      { name: 'data.large_image / data.small_image', type: 'string', required: false },
+    ]},
+    bodyExample: {
+      name: 'Weekend Slots Race',
+      description: 'Climb the board on slots all weekend.',
+      status: 'ACTIVE',
+      tags: ['weekend', 'slots'],
+      data: {
+        industry: 'Casino',
+        tournament_type: 'leaderboard',
+        games: ['starburst', 'gates-of-olympus'],
+        period: 'WEEKLY',
+        min_bet: 1,
+        start_date: '2026-06-13',
+        end_date: '2026-06-16',
+        leaderboard_size: 100,
+        prize_pool: 1000,
+        eligibility_type: 'all',
+        large_image: 'https://cdn/.../race-large.png',
+      },
+    },
+    response: { status: 201, example: j({ success: true, message: 'Tournament created successfully', data: { id: 'uuid', name: 'Weekend Slots Race', status: 'ACTIVE' } }) },
+    errors: [{ code: '400 Name is required', when: 'name missing/empty.' }],
+  },
+  {
+    id: 'gamru-tournaments-update',
+    platform: 'gamru', group: 'Tournaments', method: 'POST', path: '/api/gamification/tournaments/update-by/:id',
+    title: 'Update tournament', auth: 'jwt',
+    summary: 'Edit a tournament. Send the full payload (same shape as create); the `data` blob is replaced, so include every key you want to keep.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    body: { fields: [
+      { name: 'name', type: 'string', required: true },
+      { name: 'description', type: 'string', required: false },
+      { name: 'status', type: "'ACTIVE' | 'INACTIVE'", required: false },
+      { name: 'priority', type: 'number', required: false },
+      { name: 'tags', type: 'string[]', required: false },
+      { name: 'data', type: 'object', required: false, desc: 'full tournament config (see Create tournament for every key)' },
+    ]},
+    bodyExample: { name: 'Weekend Slots Race (extended)', status: 'ACTIVE', data: { prize_pool: 1500, end_date: '2026-06-17', leaderboard_size: 150 } },
+    response: { status: 200, example: j({ success: true, message: 'Tournament updated successfully', data: { id: 'uuid', name: 'Weekend Slots Race (extended)' } }) },
+    errors: [{ code: '404 Tournament not found', when: 'No tournament with that id.' }],
+  },
+  {
+    id: 'gamru-tournaments-archive',
+    platform: 'gamru', group: 'Tournaments', method: 'POST', path: '/api/gamification/tournaments/archive-by/:id',
+    title: 'Archive / restore tournament', auth: 'jwt',
+    summary: 'Soft-delete a tournament (archived=true) to hide it from players; send archived=false to restore.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    body: { fields: [{ name: 'archived', type: 'boolean', required: true }] },
+    bodyExample: { archived: true },
+    response: { status: 200, example: j({ success: true, message: 'Tournament updated successfully', data: { id: 'uuid', archived: true } }) },
+  },
+  {
+    id: 'gamru-tournaments-delete',
+    platform: 'gamru', group: 'Tournaments', method: 'DELETE', path: '/api/gamification/tournaments/:id',
+    title: 'Delete tournament', auth: 'jwt',
+    summary: 'Permanently remove a tournament. Prefer Archive — players’ history references the tournament id.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Tournament deleted successfully', data: null }) },
   },
 
   // ---- Tournament leaderboard ----
@@ -884,11 +1129,12 @@ const games = [
   },
 ]
 
-// Gamru-only portal: this is a service-consumer's reference to the Gamru API.
-// The games-platform endpoints are intentionally NOT surfaced — every consuming
-// platform is different and builds its own API; they all use Gamru as a service.
-export const ENDPOINTS = [...gamru]
-void games // retained for reference; not exposed in the docs UI
+// The catalog. The Gamru engine endpoints are the bulk of it; the player-facing
+// Missions & Tournaments routes (games platform) are appended so the USER
+// Endpoint reference can show what a player actually calls (join / progress /
+// claim / score) alongside the Gamru S2S surface.
+export const ENDPOINTS = [...gamru, ...PLAYER_MISSION_ENDPOINTS, ...PLAYER_TOURNAMENT_ENDPOINTS]
+void games // the broader games surface is intentionally not exposed in the docs UI
 
 // ---------------------------------------------------------------------------
 // Audience split — the docs portal has two panels:
@@ -912,7 +1158,10 @@ const USER_ENDPOINT_IDS = new Set([
 ])
 const BOTH_ENDPOINT_IDS = new Set(['gamru-health', 'gamru-players-get'])
 
+// Gamru endpoints get their audience from the sets above. Games (player) endpoints
+// carry their own audience ('user', set in playerApi.js) — don't override it.
 for (const e of ENDPOINTS) {
+  if (e.platform !== 'gamru') continue
   e.audience = BOTH_ENDPOINT_IDS.has(e.id)
     ? 'both'
     : USER_ENDPOINT_IDS.has(e.id)
@@ -926,7 +1175,7 @@ export const matchesAudience = (e, audience) =>
   !audience || e.audience === audience || e.audience === 'both'
 
 // Build ordered groups per platform (optionally filtered by audience),
-// preserving insertion order.
+// preserving insertion order. Used by the curated "manage" pages.
 export function groupsFor(platform, audience) {
   const match = (e) => e.platform === platform && matchesAudience(e, audience)
   const seen = []
@@ -935,6 +1184,32 @@ export function groupsFor(platform, audience) {
     if (!seen.includes(e.group)) seen.push(e.group)
   }
   return seen.map((g) => ({ group: g, items: ENDPOINTS.filter((e) => match(e) && e.group === g) }))
+}
+
+// ---------------------------------------------------------------------------
+// Endpoint REFERENCE scope (the /user/endpoints & /admin/endpoints catalog and
+// its sidebar). Distinct from groupsFor() above:
+//   user  → everything a consumer calls: every 'user'/'both' endpoint, across
+//           BOTH platforms — Gamru S2S (client key) + the player Missions &
+//           Tournaments routes on the games platform.
+//   admin → the WHOLE Gamru engine surface: every Gamru-platform endpoint,
+//           regardless of sub-audience.
+// ---------------------------------------------------------------------------
+export const inReference = (e, audience) =>
+  audience === 'admin'
+    ? e.platform === 'gamru'
+    : e.audience === 'user' || e.audience === 'both'
+
+export function referenceGroupsFor(audience) {
+  const seen = []
+  for (const e of ENDPOINTS) {
+    if (!inReference(e, audience)) continue
+    if (!seen.includes(e.group)) seen.push(e.group)
+  }
+  return seen.map((g) => ({
+    group: g,
+    items: ENDPOINTS.filter((e) => inReference(e, audience) && e.group === g),
+  }))
 }
 
 export function endpointById(id) {

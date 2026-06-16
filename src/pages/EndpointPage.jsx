@@ -1,6 +1,6 @@
 import { Link, useParams, useLocation } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, ChevronRight } from 'lucide-react'
-import { ENDPOINTS, endpointById, matchesAudience } from '../data/endpoints'
+import { ENDPOINTS, endpointById, inReference } from '../data/endpoints'
 import { panelFor } from '../data/panels'
 import EndpointCard from '../components/EndpointCard'
 
@@ -9,11 +9,10 @@ export default function EndpointPage() {
   const { pathname } = useLocation()
   const panel = panelFor(pathname)
   const base = `${panel.home}/endpoints` // /user/endpoints or /admin/endpoints
-  const platform = 'gamru'
   const ep = endpointById(id)
 
   // Guard against bad links / endpoints that don't belong to this panel.
-  if (!ep || ep.platform !== platform || !matchesAudience(ep, panel.key)) {
+  if (!ep || !inReference(ep, panel.key)) {
     return (
       <div className="py-16 text-center">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Endpoint not found</h1>
@@ -29,7 +28,7 @@ export default function EndpointPage() {
 
   const refTitle = panel.key === 'admin' ? 'Gamru admin API' : 'Gamru user API'
   // Keep prev/next within the SAME panel so navigation never crosses sides.
-  const siblings = ENDPOINTS.filter((e) => e.platform === platform && matchesAudience(e, panel.key))
+  const siblings = ENDPOINTS.filter((e) => inReference(e, panel.key))
   const idx = siblings.findIndex((e) => e.id === id)
   const prev = siblings[idx - 1]
   const next = siblings[idx + 1]

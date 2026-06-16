@@ -33,6 +33,7 @@ export default function EndpointCard({ ep }) {
           {ep.params && <FieldTable title="Path params" fields={ep.params.fields} />}
           {ep.query && <FieldTable title="Query params" fields={ep.query.fields} />}
           {ep.body && <FieldTable title="Request body" fields={ep.body.fields} />}
+          {ep.errors && ep.errors.length > 0 && <ErrorTable errors={ep.errors} />}
         </div>
 
         {/* right: multi-language request example + response */}
@@ -47,6 +48,28 @@ export default function EndpointCard({ ep }) {
       {/* Special: the events firehose gets a full event-type catalog. */}
       {ep.id === 'gamru-integration-events' && <EventsReference />}
     </section>
+  )
+}
+
+// Error / status-code table — { code, when } rows, rendered when an endpoint
+// documents its failure modes.
+function ErrorTable({ errors }) {
+  return (
+    <div className="mt-4">
+      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Errors</h4>
+      <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
+        <table className="w-full text-left text-sm">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {errors.map((e) => (
+              <tr key={e.code} className="align-top">
+                <td className="w-2/5 px-3 py-2 font-mono text-[13px] text-rose-600 dark:text-rose-300">{e.code}</td>
+                <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{e.when}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
 

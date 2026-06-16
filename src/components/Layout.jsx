@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { Boxes, ChevronRight, Github, Menu, Moon, Search, Sun, UserCog, User, X } from 'lucide-react'
 import { PANELS, panelFor } from '../data/panels'
-import { ENDPOINTS, referenceGroupsFor, inReference } from '../data/endpoints'
+import { ENDPOINTS, groupsFor } from '../data/endpoints'
 import { MethodBadge } from './primitives'
 import LanguageSelect from './LanguageSelect'
 
@@ -23,7 +23,7 @@ function useDarkMode() {
 
 // Client-side search across the endpoints of the ACTIVE panel only.
 function buildSearchIndex(panelKey) {
-  return ENDPOINTS.filter((e) => inReference(e, panelKey)).map((e) => ({
+  return ENDPOINTS.filter((e) => e.audience === panelKey || e.audience === 'both').map((e) => ({
     label: `${e.method} ${e.path}`,
     sub: e.title,
     to: `/${panelKey}/endpoints/${e.id}`,
@@ -78,9 +78,9 @@ function SearchBox({ panelKey }) {
 }
 
 // Expandable API section: collapsible endpoint groups -> per-endpoint links.
-function ApiNavSection({ section, audience, onNavigate }) {
+function ApiNavSection({ section, platform, audience, onNavigate }) {
   const { pathname } = useLocation()
-  const groups = referenceGroupsFor(audience)
+  const groups = groupsFor(platform, audience)
   // Endpoint detail lives under the active panel, e.g. /admin/endpoints/:id.
   const base = audience === 'admin' ? '/admin/endpoints' : '/user/endpoints'
   const activeId = pathname.startsWith(base + '/') ? pathname.slice(base.length + 1) : ''

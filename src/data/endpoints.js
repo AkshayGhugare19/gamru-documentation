@@ -187,18 +187,6 @@ const gamru = [
     response: { status: 200, example: j({ success: true, data: { id: 'uuid', name: 'Jane', level: 7, xp_points: 1240, rank_name: 'Silver', tokens: 320, gamification: { progress: {}, missions: [], mission_bundles: [], tournaments: [], reward_shop: [], rewards: [], logs: [] } } }) },
   },
   {
-    id: 'gamru-players-add-xp',
-    platform: 'gamru', group: 'Players', method: 'POST', path: '/api/players/by-email/add-xp',
-    title: 'Add XP by email', auth: 'client',
-    summary: 'Award XP to a player identified by email. The optional game block feeds the player’s casino personalization (favourite category/provider). The engine recomputes level & rank from the ladder.',
-    body: { fields: [
-      { name: 'email', type: 'string', required: true },
-      { name: 'amount', type: 'number', required: true, desc: 'may be 0 if game provided' },
-      { name: 'game', type: 'object', required: false, desc: '{ id, name, category, provider, turnover }' },
-    ]},
-    response: { status: 200, example: j({ success: true, data: { id: 'uuid', xp_points: 1290, level: 7, rank_name: 'Silver', xp_to_next: 210 } }) },
-  },
-  {
     id: 'gamru-players-paginate',
     platform: 'gamru', group: 'Players', method: 'GET', path: '/api/players/paginate',
     title: 'List players', auth: 'jwt',
@@ -246,17 +234,6 @@ const gamru = [
     response: { status: 200, example: j({ success: true, data: [{ id: 'uuid', reward_type: 'BONUS_CASH', reward: '10.00', status: 'IN_PROGRESS' }] }) },
   },
   {
-    id: 'gamru-players-reward-claim',
-    platform: 'gamru', group: 'Players', method: 'POST', path: '/api/players/:id/rewards/:rewardId/claim',
-    title: 'Claim a reward', auth: 'client',
-    summary: 'S2S — the games platform calls this when a player taps “claim”. gamru is the reward ledger of record.',
-    params: { fields: [
-      { name: 'id', type: 'uuid', required: true, desc: 'player id' },
-      { name: 'rewardId', type: 'uuid', required: true },
-    ]},
-    response: { status: 200, example: j({ success: true, message: 'Reward claimed', data: { id: 'uuid', status: 'CLAIMED' } }) },
-  },
-  {
     id: 'gamru-players-mission-claim',
     platform: 'gamru', group: 'Missions (player)', method: 'POST', path: '/api/players/:id/missions/:missionId/claim',
     title: 'Claim a mission reward', auth: 'client',
@@ -267,18 +244,6 @@ const gamru = [
       { name: 'missionId', type: 'uuid', required: true },
     ]},
     response: { status: 200, example: j({ success: true, message: 'Mission reward granted', data: { reward_type: 'XP', reward: '50' } }) },
-  },
-  {
-    id: 'gamru-players-shop-purchase',
-    platform: 'gamru', group: 'Players', method: 'POST', path: '/api/players/:id/reward-shop/purchase',
-    title: 'Purchase shop item', auth: 'client',
-    summary: 'S2S — spend tokens on a reward-shop item. Atomic: token deduction, stock decrement and audit all commit together.',
-    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
-    body: { fields: [
-      { name: 'shop_item_id', type: 'uuid', required: true },
-      { name: 'quantity', type: 'number', required: false, desc: '1–99, default 1' },
-    ]},
-    response: { status: 200, example: j({ success: true, data: { tokens_remaining: 220, tokens_spent: 100 } }) },
   },
   {
     id: 'gamru-players-campaign-history',
@@ -458,6 +423,110 @@ const gamru = [
     response: { status: 200, example: j({ success: true, message: 'Mission deleted successfully', data: null }) },
   },
 
+  // ---- Mission Bundles (operator authoring) ----
+  {
+    id: 'gamru-bundles-add',
+    platform: 'gamru', group: 'Mission Bundles', method: 'POST', path: '/api/gamification/mission-bundles/add',
+    title: 'Create a mission bundle', auth: 'jwt',
+    summary:
+      'A bundle is a curated GROUPING of existing missions into a periodic quest (daily / weekly / monthly / lifetime). It carries no reward of its own — the player completes and claims each mission individually. The grouped mission ids, periodicity, banners and eligibility live in the data JSONB blob.',
+    body: { fields: [
+      { name: 'name', type: 'string', required: true, desc: '1–200 chars' },
+      { name: 'description', type: 'string', required: false },
+      { name: 'status', type: "'ACTIVE' | 'INACTIVE'", required: false, desc: 'default INACTIVE — set ACTIVE to publish' },
+      { name: 'priority', type: 'number', required: false },
+      { name: 'tags', type: 'string[]', required: false },
+      { name: 'data.periodicity', type: 'string', required: false, desc: 'DAILY | WEEKLY | MONTHLY | LIFETIME — controls reset' },
+      { name: 'data.bundle_type', type: 'string', required: false, desc: 'Lifetime | Custom' },
+      { name: 'data.missions', type: 'object[]', required: true, desc: 'the grouped missions — [{ id, name }] referencing the missions table' },
+      { name: 'data.large_image / data.small_image', type: 'string', required: false, desc: 'banner (desktop / mobile)' },
+      { name: 'data.eligibility_type', type: 'string', required: false, desc: 'All Players | Segment' },
+      { name: 'data.segment', type: 'string[]', required: false, desc: 'segment names when eligibility_type = Segment' },
+      { name: 'data.start_date / data.end_date', type: 'ISO date', required: false, desc: 'when bundle_type = Custom' },
+    ]},
+    bodyExample: {
+      name: 'Daily quests',
+      description: 'Finish all three to clear today’s quests',
+      status: 'ACTIVE',
+      priority: 1,
+      tags: ['daily'],
+      data: {
+        periodicity: 'DAILY',
+        bundle_type: 'Lifetime',
+        missions: [
+          { id: 'm1', name: 'Spin 10 slots' },
+          { id: 'm2', name: 'Make a deposit' },
+        ],
+        large_image: 'https://cdn.example.com/bundles/daily-desktop.png',
+        small_image: 'https://cdn.example.com/bundles/daily-mobile.png',
+        eligibility_type: 'All Players',
+        segment: [],
+      },
+    },
+    response: { status: 201, example: j({ success: true, message: 'Mission Bundle created successfully', data: { id: 'b1', name: 'Daily quests', status: 'ACTIVE' } }) },
+  },
+  {
+    id: 'gamru-bundles-paginate',
+    platform: 'gamru', group: 'Mission Bundles', method: 'GET', path: '/api/gamification/mission-bundles/paginate',
+    title: 'List mission bundles', auth: 'jwt',
+    summary: 'Paginated bundle grid with search, status, tag and archived filters.',
+    query: { fields: [
+      { name: 'page / limit', type: 'number', desc: 'default 1 / 25' },
+      { name: 'search', type: 'string' },
+      { name: 'status', type: "'ACTIVE' | 'INACTIVE'" },
+      { name: 'archived', type: 'boolean' },
+      { name: 'tag', type: 'string' },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Mission Bundle fetched successfully', data: [{ id: 'b1', name: 'Daily quests', status: 'ACTIVE' }], total: 1, page: 1, limit: 25 }) },
+  },
+  {
+    id: 'gamru-bundles-get',
+    platform: 'gamru', group: 'Mission Bundles', method: 'GET', path: '/api/gamification/mission-bundles/:id',
+    title: 'Get a mission bundle', auth: 'jwt',
+    summary: 'Fetch one bundle by id, including its data blob (grouped missions, periodicity, eligibility).',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Mission Bundle fetched successfully', data: { id: 'b1', name: 'Daily quests', status: 'ACTIVE', data: { periodicity: 'DAILY', missions: [{ id: 'm1', name: 'Spin 10 slots' }] } } }) },
+  },
+  {
+    id: 'gamru-bundles-update',
+    platform: 'gamru', group: 'Mission Bundles', method: 'POST', path: '/api/gamification/mission-bundles/update-by/:id',
+    title: 'Update a mission bundle', auth: 'jwt',
+    summary: 'Edit any field of a bundle. The data blob is replaced wholesale — include the full missions array and settings you want to keep.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    bodyExample: {
+      name: 'Daily quests',
+      status: 'ACTIVE',
+      data: {
+        periodicity: 'DAILY',
+        bundle_type: 'Lifetime',
+        missions: [
+          { id: 'm1', name: 'Spin 10 slots' },
+          { id: 'm2', name: 'Make a deposit' },
+          { id: 'm3', name: 'Win a round' },
+        ],
+        eligibility_type: 'All Players',
+      },
+    },
+    response: { status: 200, example: j({ success: true, message: 'Mission Bundle updated successfully', data: { id: 'b1', name: 'Daily quests' } }) },
+  },
+  {
+    id: 'gamru-bundles-archive',
+    platform: 'gamru', group: 'Mission Bundles', method: 'POST', path: '/api/gamification/mission-bundles/archive-by/:id',
+    title: 'Archive / restore a mission bundle', auth: 'jwt',
+    summary: 'Soft-delete: archived=true hides the bundle from players but keeps it queryable. Send archived=false to restore.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    body: { fields: [{ name: 'archived', type: 'boolean', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Mission Bundle updated successfully', data: { id: 'b1', archived: true } }) },
+  },
+  {
+    id: 'gamru-bundles-delete',
+    platform: 'gamru', group: 'Mission Bundles', method: 'DELETE', path: '/api/gamification/mission-bundles/:id',
+    title: 'Delete a mission bundle', auth: 'jwt',
+    summary: 'Permanently remove a bundle definition (the grouped missions themselves are untouched). Prefer archive to take it offline.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Mission Bundle deleted successfully', data: null }) },
+  },
+
   // ---- Tournaments (operator authoring) ----
   {
     id: 'gamru-tournaments-add',
@@ -605,6 +674,45 @@ const gamru = [
     response: { status: 200, example: j({ success: true, message: 'Event processed', data: { applied: true, duplicate: false } }) },
   },
   {
+    id: 'gamru-user-bundles-get',
+    platform: 'gamru', group: 'Mission Bundles (player)', method: 'POST', path: '/api/players/by-email',
+    title: 'Get a player’s mission bundles', auth: 'client',
+    summary:
+      'Read the player snapshot and use the gamification.mission_bundles slice — curated quests with their periodicity and completed/total progress. A bundle groups missions but holds no reward itself: render the bundle card, expand to its missions, and claim each completed mission with the mission-claim endpoint (see Missions tab).',
+    body: { fields: [{ name: 'email', type: 'string', required: true }] },
+    response: { status: 200, example: j({ success: true, data: { id: 'uuid', email: 'jane@x.com', gamification: { mission_bundles: [{ id: 'b1', name: 'Daily quests', status: 'ACTIVE', data: { periodicity: 'DAILY', missions: [{ id: 'm1', name: 'Spin 10 slots' }, { id: 'm2', name: 'Make a deposit' }] } }] } } }) },
+  },
+  {
+    id: 'gamru-user-bundles-progress',
+    platform: 'gamru', group: 'Mission Bundles (player)', method: 'POST', path: '/api/integration/events',
+    title: 'Advance bundle progress (events)', auth: 'client',
+    summary:
+      'A bundle carries no progress of its own — its completed/total rolls up from the missions inside it. So you advance a bundle exactly like a mission: push the player event and the engine advances the underlying missions, which re-derives the bundle’s progress on the next snapshot. Same inbound hook as the Missions tab; event_type must be one of EXACTLY the five accepted values, else 400. Idempotent on event_id; needs the shared service key and your client key.',
+    headers: [
+      { name: 'x-service-key', desc: 'shared service secret — required (serviceAuth)' },
+      { name: 'x-client-auth-key', desc: 'your client key — required (clientAuth)' },
+    ],
+    body: { fields: [
+      { name: 'event_id', type: 'string', required: true, desc: 'unique & stable (1–180 chars) — dedupe key' },
+      { name: 'event_type', type: 'enum', required: true, desc: 'USER_REGISTERED | XP_AWARDED | LEVEL_UP | RANK_UP | DEPOSIT_MADE (the only accepted values)' },
+      { name: 'external_id', type: 'string', required: true, desc: 'your platform’s user id (1–120 chars)' },
+      { name: 'origin', type: 'string', required: false, desc: 'your platform name (≤40 chars)' },
+      { name: 'email', type: 'string|null', required: false, desc: 'links USER_REGISTERED → player' },
+      { name: 'amount', type: 'number', required: false, desc: 'XP delta (XP_AWARDED) / deposit amount (DEPOSIT_MADE)' },
+      { name: 'meta', type: 'object', required: false, desc: 'free-form JSON; usual keys by type → DEPOSIT_MADE: { method, currency } · XP_AWARDED: { reason } · LEVEL_UP: { from_level, to_level } · RANK_UP: { from_rank, to_rank } · USER_REGISTERED: (none)' },
+    ]},
+    bodyExample: {
+      event_id: 'DEPOSIT_MADE:P-1001:tx-55021',
+      event_type: 'DEPOSIT_MADE',
+      external_id: 'P-1001',
+      origin: 'lucky-casino',
+      email: 'jane@x.com',
+      amount: 100,
+      meta: { method: 'card', currency: 'USD' },
+    },
+    response: { status: 200, example: j({ success: true, message: 'Event processed', data: { applied: true, duplicate: false } }) },
+  },
+  {
     id: 'gamru-tlb-score',
     platform: 'gamru', group: 'Tournaments (player)', method: 'POST', path: '/api/tournament-leaderboard/:tournamentId/score',
     title: 'Submit tournament score (progress)', auth: 'client',
@@ -635,6 +743,123 @@ const gamru = [
       'Read the ranked standings to render a tournament’s leaderboard. tournamentId is the tournament’s id. Note: gamru guards this with an operator JWT, so call it from your backend with a stored operator token (this is gamru.tournamentLeaderboard.getStandings(tournamentId, token) in the platform client) — not with the client key.',
     params: { fields: [{ name: 'tournamentId', type: 'string', required: true, desc: 'the tournament’s id' }] },
     response: { status: 200, example: j({ success: true, message: 'Leaderboard fetched', data: [{ rank: 1, email: 'a@x.com', name: 'Ace', score: 4200 }, { rank: 2, email: 'jane@x.com', name: 'Jane', score: 3900 }] }) },
+  },
+
+  // ---- Profile / progression / ranks / rewards / shop (player surface) ----
+  // Almost everything a player sees is one POST /api/players/by-email snapshot;
+  // each tab below reads a different slice of it, plus the S2S write it needs.
+  {
+    id: 'gamru-user-profile-get',
+    platform: 'gamru', group: 'Profile (player)', method: 'POST', path: '/api/players/by-email',
+    title: 'Get player profile', auth: 'client',
+    summary:
+      'The player snapshot — identity plus the gamification block. Read the top-level fields (name, level, rank_name, xp_points, tokens) and gamification.progress for the profile header. This one call also carries ranks, rank progress, missions, tournaments, rewards and the reward shop — each documented in its own tab.',
+    body: { fields: [{ name: 'email', type: 'string', required: true }] },
+    response: { status: 200, example: j({ success: true, data: { id: 'uuid', email: 'jane@x.com', name: 'Jane', level: 7, rank_name: 'Silver', xp_points: 1240, tokens: 320, gamification: { progress: { level: 7, rank_name: 'Silver', xp_points: 1240, xp_to_next: 210 } } } }) },
+  },
+  {
+    id: 'gamru-players-add-xp',
+    platform: 'gamru', group: 'XP Points (player)', method: 'POST', path: '/api/players/by-email/add-xp',
+    title: 'Add XP directly (by email)', auth: 'client',
+    summary:
+      'Award an explicit XP amount to a player identified by email, and read the recomputed level/rank straight back. Use this when your platform decides the amount (e.g. after applying a booster). The engine recomputes level, rank and xp_to_next from the ladder; the optional game block feeds the player’s casino personalization (favourite category / provider).',
+    body: { fields: [
+      { name: 'email', type: 'string', required: true },
+      { name: 'amount', type: 'number', required: true, desc: 'XP delta; may be 0 if game provided' },
+      { name: 'game', type: 'object', required: false, desc: '{ id, name, category, provider, turnover }' },
+    ]},
+    response: { status: 200, example: j({ success: true, data: { id: 'uuid', xp_points: 1290, level: 7, rank_name: 'Silver', xp_to_next: 210 } }) },
+  },
+  {
+    id: 'gamru-user-xp-event',
+    platform: 'gamru', group: 'XP Points (player)', method: 'POST', path: '/api/integration/events',
+    title: 'Award XP via event (rules decide)', auth: 'client',
+    summary:
+      'The other way to hand a player XP: push an XP_AWARDED event and let the engine apply it and recompute level/rank. Use this when XP amounts are governed by your Gamru-side rules rather than computed on your platform. Idempotent on event_id; needs the shared service key and your client key.',
+    headers: [
+      { name: 'x-service-key', desc: 'shared service secret — required (serviceAuth)' },
+      { name: 'x-client-auth-key', desc: 'your client key — required (clientAuth)' },
+    ],
+    body: { fields: [
+      { name: 'event_id', type: 'string', required: true, desc: 'unique & stable (1–180 chars) — dedupe key' },
+      { name: 'event_type', type: 'enum', required: true, desc: 'XP_AWARDED for this tab (the hook also accepts USER_REGISTERED | LEVEL_UP | RANK_UP | DEPOSIT_MADE)' },
+      { name: 'external_id', type: 'string', required: true, desc: 'your platform’s user id (1–120 chars)' },
+      { name: 'origin', type: 'string', required: false, desc: 'your platform name (≤40 chars)' },
+      { name: 'email', type: 'string|null', required: false, desc: 'links the event to the player' },
+      { name: 'amount', type: 'number', required: true, desc: 'the XP delta to apply' },
+      { name: 'meta', type: 'object', required: false, desc: '{ reason } — free-form context' },
+    ]},
+    bodyExample: {
+      event_id: 'XP_AWARDED:P-1001:bonus-7',
+      event_type: 'XP_AWARDED',
+      external_id: 'P-1001',
+      origin: 'lucky-casino',
+      email: 'jane@x.com',
+      amount: 50,
+      meta: { reason: 'daily_bonus' },
+    },
+    response: { status: 200, example: j({ success: true, message: 'Event processed', data: { applied: true, duplicate: false } }) },
+  },
+  {
+    id: 'gamru-user-rankprogress-get',
+    platform: 'gamru', group: 'Rank progress (player)', method: 'POST', path: '/api/players/by-email',
+    title: 'Get rank progress', auth: 'client',
+    summary:
+      'Use gamification.progress (current level / rank / xp_points and xp_to_next) and gamification.next_rank (the rank being climbed toward, with xp_remaining) to draw the “62% to next rank” bar. The engine recomputes both from the XP ladder on every fetch.',
+    body: { fields: [{ name: 'email', type: 'string', required: true }] },
+    response: { status: 200, example: j({ success: true, data: { gamification: { progress: { level: 7, rank_name: 'Silver', xp_points: 1240, xp_to_next: 210, max_level: 30 }, next_rank: { rank_name: 'Gold', level: 8, xp_required: 1450, xp_remaining: 210 } } } }) },
+  },
+  {
+    id: 'gamru-user-ranks-get',
+    platform: 'gamru', group: 'Ranks (player)', method: 'POST', path: '/api/players/by-email',
+    title: 'Get ranks & levels', auth: 'client',
+    summary:
+      'gamification.ranks is the full configured ladder of rank tiers; gamification.levels is the per-level XP bands. Render the ranks roadmap and highlight the player’s current tier from gamification.progress.rank_name.',
+    body: { fields: [{ name: 'email', type: 'string', required: true }] },
+    response: { status: 200, example: j({ success: true, data: { gamification: { ranks: [{ id: 'uuid', name: 'Bronze' }, { id: 'uuid', name: 'Silver' }, { id: 'uuid', name: 'Gold' }], levels: [{ level: 7, rank_name: 'Silver', xp_start: 1000, xp_end: 1450 }] } } }) },
+  },
+  {
+    id: 'gamru-user-rewards-get',
+    platform: 'gamru', group: 'Rewards (player)', method: 'POST', path: '/api/players/by-email',
+    title: 'Get a player’s rewards', auth: 'client',
+    summary:
+      'gamification.rewards is the player’s reward ledger — each row carries a status (IN_PROGRESS → GRANTED / CLAIMED) and the reward itself. Show the unclaimed ones with a “Claim” button; gamru is the ledger of record.',
+    body: { fields: [{ name: 'email', type: 'string', required: true }] },
+    response: { status: 200, example: j({ success: true, data: { gamification: { rewards: [{ id: 'r1', reward_type: 'bonus_cash', reward: 'Spin 10 slots — 10', status: 'IN_PROGRESS' }, { id: 'r2', reward_type: 'xp', reward: 'Daily bonus — 50', status: 'GRANTED' }] } } }) },
+  },
+  {
+    id: 'gamru-players-reward-claim',
+    platform: 'gamru', group: 'Rewards (player)', method: 'POST', path: '/api/players/:id/rewards/:rewardId/claim',
+    title: 'Claim a reward', auth: 'client',
+    summary:
+      'When a player taps “claim” on an IN_PROGRESS reward, call this. gamru applies the reward’s effect (XP via the rank engine, tokens, or records bonus cash / free spins), writes the audit row and flips it to CLAIMED. id is the gamru player id; rewardId is the reward’s id from the rewards list.',
+    params: { fields: [
+      { name: 'id', type: 'uuid', required: true, desc: 'player id' },
+      { name: 'rewardId', type: 'uuid', required: true, desc: 'reward id from gamification.rewards' },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Reward claimed', data: { reward: { id: 'r1', status: 'GRANTED' }, player: { tokens: 320, xp_points: 1290 } } }) },
+  },
+  {
+    id: 'gamru-user-shop-get',
+    platform: 'gamru', group: 'Reward Shop (player)', method: 'POST', path: '/api/players/by-email',
+    title: 'Get reward-shop products', auth: 'client',
+    summary:
+      'gamification.reward_shop is the token-spend catalog (products + boosters). Compare each item’s data.token_price against the player’s tokens balance (also on the snapshot) to flag what’s affordable.',
+    body: { fields: [{ name: 'email', type: 'string', required: true }] },
+    response: { status: 200, example: j({ success: true, data: { tokens: 320, gamification: { reward_shop: [{ id: 's1', name: 'XP Booster', data: { token_price: 100, stock_available: 25 } }] } } }) },
+  },
+  {
+    id: 'gamru-players-shop-purchase',
+    platform: 'gamru', group: 'Reward Shop (player)', method: 'POST', path: '/api/players/:id/reward-shop/purchase',
+    title: 'Purchase a shop item (spend tokens)', auth: 'client',
+    summary:
+      'Spend a player’s tokens on a reward-shop product. Atomic: gamru re-reads the live balance + stock, validates affordability, then deducts tokens, decrements stock and writes the audit in one transaction (no double-spend). The trusted price/stock come from gamru — you only name the product and quantity.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true, desc: 'player id' }] },
+    body: { fields: [
+      { name: 'shop_item_id', type: 'uuid', required: true, desc: 'id from gamification.reward_shop' },
+      { name: 'quantity', type: 'number', required: false, desc: '1–99, default 1' },
+    ]},
+    response: { status: 200, example: j({ success: true, data: { item_name: 'XP Booster', tokens_spent: 100, tokens_remaining: 220, stock_available: 24 } }) },
   },
 
   // ---- CRM: campaigns / segments / templates / triggers / caps ----
@@ -1183,8 +1408,17 @@ const USER_ENDPOINT_IDS = new Set([
   // mission & tournament player surface (broken out into their own groups)
   'gamru-user-missions-get',
   'gamru-user-missions-progress',
+  'gamru-user-bundles-get',
+  'gamru-user-bundles-progress',
   'gamru-user-tournaments-get',
   'gamru-user-tournaments-standings',
+  // profile / progression / ranks / rewards / shop player surface (own tabs)
+  'gamru-user-profile-get',
+  'gamru-user-xp-event',
+  'gamru-user-rankprogress-get',
+  'gamru-user-ranks-get',
+  'gamru-user-rewards-get',
+  'gamru-user-shop-get',
 ])
 const BOTH_ENDPOINT_IDS = new Set(['gamru-health', 'gamru-players-get'])
 

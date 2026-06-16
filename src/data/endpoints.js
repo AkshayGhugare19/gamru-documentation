@@ -163,7 +163,7 @@ const gamru = [
       { name: 'origin', type: 'string', required: false, desc: 'your platform name (≤40 chars)' },
       { name: 'email', type: 'string|null', required: false, desc: 'links USER_REGISTERED → player' },
       { name: 'amount', type: 'number', required: false, desc: 'XP delta / deposit amount' },
-      { name: 'meta', type: 'object', required: false, desc: 'free-form context' },
+      { name: 'meta', type: 'object', required: false, desc: 'free-form JSON; usual keys by type → DEPOSIT_MADE: { method, currency } · XP_AWARDED: { reason } · LEVEL_UP: { from_level, to_level } · RANK_UP: { from_rank, to_rank } · USER_REGISTERED: (none)' },
     ]},
     bodyExample: {
       event_id: 'DEPOSIT_MADE:P-1001:dep-5521',
@@ -577,28 +577,30 @@ const gamru = [
   {
     id: 'gamru-user-missions-progress',
     platform: 'gamru', group: 'Missions (player)', method: 'POST', path: '/api/integration/events',
-    title: 'Advance mission progress (events)', auth: 'client',
+    title: 'Push player events (feeds progression)', auth: 'client',
     summary:
-      'You don’t set mission progress directly — you push the gameplay fact and the engine advances every matching mission. A WAGER/CASINO_WIN/DEPOSIT_MADE/LOGIN event (idempotent on event_id) increments the player’s progress for any ACTIVE mission whose objective listens to that event. Requires both the shared service key and your client key.',
+      'The single inbound hook. Push lifecycle / progression facts and the engine links the player, applies XP and updates deposit segmentation — the signals mission & reward logic build on. Idempotent on event_id (a replay never double-counts). The backend validates event_type against EXACTLY the five values below; any other value is rejected with 400. Requires both the shared service key and your client key.',
     headers: [
       { name: 'x-service-key', desc: 'shared service secret — required (serviceAuth)' },
       { name: 'x-client-auth-key', desc: 'your client key — required (clientAuth)' },
     ],
     body: { fields: [
-      { name: 'event_id', type: 'string', required: true, desc: 'unique & stable — dedupe key' },
-      { name: 'event_type', type: 'enum', required: true, desc: 'WAGER | CASINO_WIN | DEPOSIT_MADE | LOGIN | …' },
-      { name: 'external_id', type: 'string', required: true, desc: 'your platform’s user id' },
-      { name: 'email', type: 'string', required: false, desc: 'links the event to the player' },
-      { name: 'amount', type: 'number', required: false, desc: 'used by “amount” objectives' },
-      { name: 'meta', type: 'object', required: false, desc: '{ game_category, game_id, bet } — checked against sub-conditions' },
+      { name: 'event_id', type: 'string', required: true, desc: 'unique & stable (1–180 chars) — dedupe key' },
+      { name: 'event_type', type: 'enum', required: true, desc: 'USER_REGISTERED | XP_AWARDED | LEVEL_UP | RANK_UP | DEPOSIT_MADE (the only accepted values)' },
+      { name: 'external_id', type: 'string', required: true, desc: 'your platform’s user id (1–120 chars)' },
+      { name: 'origin', type: 'string', required: false, desc: 'your platform name (≤40 chars)' },
+      { name: 'email', type: 'string|null', required: false, desc: 'links USER_REGISTERED → player' },
+      { name: 'amount', type: 'number', required: false, desc: 'XP delta (XP_AWARDED) / deposit amount (DEPOSIT_MADE)' },
+      { name: 'meta', type: 'object', required: false, desc: 'free-form JSON; usual keys by type → DEPOSIT_MADE: { method, currency } · XP_AWARDED: { reason } · LEVEL_UP: { from_level, to_level } · RANK_UP: { from_rank, to_rank } · USER_REGISTERED: (none)' },
     ]},
     bodyExample: {
-      event_id: 'WAGER:P-1001:r-88421',
-      event_type: 'WAGER',
+      event_id: 'DEPOSIT_MADE:P-1001:tx-55021',
+      event_type: 'DEPOSIT_MADE',
       external_id: 'P-1001',
+      origin: 'lucky-casino',
       email: 'jane@x.com',
-      amount: 5,
-      meta: { game_id: 'g-100', game_category: 'slots', bet: 5 },
+      amount: 100,
+      meta: { method: 'card', currency: 'USD' },
     },
     response: { status: 200, example: j({ success: true, message: 'Event processed', data: { applied: true, duplicate: false } }) },
   },
@@ -621,9 +623,18 @@ const gamru = [
     platform: 'gamru', group: 'Tournaments (player)', method: 'POST', path: '/api/players/by-email',
     title: 'Get a player’s tournaments', auth: 'client',
     summary:
-      'Read the player snapshot and use the gamification.tournaments slice — the ACTIVE tournaments to show the player. Their standings come from the back-office standings endpoint (or render the position you track from score submissions).',
+      'Read the player snapshot and use the gamification.tournaments slice — the ACTIVE tournaments to show the player. Their standings come from the standings endpoint below (or render the position you track from score submissions).',
     body: { fields: [{ name: 'email', type: 'string', required: true }] },
     response: { status: 200, example: j({ success: true, data: { id: 'uuid', email: 'jane@x.com', gamification: { tournaments: [{ id: 't1', name: 'Weekend Race', status: 'ACTIVE', data: { end_date: '2026-06-22T23:59:59Z' } }] } } }) },
+  },
+  {
+    id: 'gamru-user-tournaments-standings',
+    platform: 'gamru', group: 'Tournaments (player)', method: 'GET', path: '/api/tournament-leaderboard/:tournamentId',
+    title: 'Get tournament standings (leaderboard)', auth: 'jwt',
+    summary:
+      'Read the ranked standings to render a tournament’s leaderboard. tournamentId is the tournament’s id. Note: gamru guards this with an operator JWT, so call it from your backend with a stored operator token (this is gamru.tournamentLeaderboard.getStandings(tournamentId, token) in the platform client) — not with the client key.',
+    params: { fields: [{ name: 'tournamentId', type: 'string', required: true, desc: 'the tournament’s id' }] },
+    response: { status: 200, example: j({ success: true, message: 'Leaderboard fetched', data: [{ rank: 1, email: 'a@x.com', name: 'Ace', score: 4200 }, { rank: 2, email: 'jane@x.com', name: 'Jane', score: 3900 }] }) },
   },
 
   // ---- CRM: campaigns / segments / templates / triggers / caps ----
@@ -1173,6 +1184,7 @@ const USER_ENDPOINT_IDS = new Set([
   'gamru-user-missions-get',
   'gamru-user-missions-progress',
   'gamru-user-tournaments-get',
+  'gamru-user-tournaments-standings',
 ])
 const BOTH_ENDPOINT_IDS = new Set(['gamru-health', 'gamru-players-get'])
 

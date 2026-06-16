@@ -32,8 +32,9 @@ const bundles  = data.gamification.mission_bundles  // grouped quests with perio
 const tournaments = data.gamification.tournaments   // [{ id, name, status, data }]
 // status: IN_PROGRESS → COMPLETED → CLAIMED`
 
-const PROGRESS_EVENT = `// You never set mission progress directly — push the gameplay fact and the
-// engine advances every ACTIVE mission whose objective listens to that event.
+const PROGRESS_EVENT = `// Push the lifecycle / progression fact — the engine links the player, applies
+// XP and updates deposit segmentation. event_type must be one of EXACTLY five
+// values; any other value is rejected with 400.
 await fetch(\`\${process.env.GAMRU_BACKEND_URL}/integration/events\`, {
   method: 'POST',
   headers: {
@@ -42,12 +43,13 @@ await fetch(\`\${process.env.GAMRU_BACKEND_URL}/integration/events\`, {
     'x-service-key': process.env.SERVICE_SHARED_KEY,
   },
   body: JSON.stringify({
-    event_id: \`WAGER:\${userId}:\${roundId}\`, // stable → idempotent
-    event_type: 'WAGER',                       // WAGER · CASINO_WIN · DEPOSIT_MADE · LOGIN
+    event_id: \`DEPOSIT_MADE:\${userId}:\${txId}\`, // stable → idempotent
+    // Accepted: USER_REGISTERED · XP_AWARDED · LEVEL_UP · RANK_UP · DEPOSIT_MADE
+    event_type: 'DEPOSIT_MADE',
     external_id: String(userId),
     email,
-    amount: bet,
-    meta: { game_id, game_category: 'slots', bet },
+    amount: 100,
+    meta: { method: 'card', currency: 'USD' },
   }),
 }).catch(() => {}) // fire-and-forget: a failed event must never break gameplay`
 
@@ -70,6 +72,14 @@ const res = await fetch(
 )
 const { data } = await res.json() // { tournament_id, email, score }`
 
+const STANDINGS = `// Render the leaderboard. Note: standings are guarded by an operator JWT,
+// so call this from your backend with a stored operator token (not the client key).
+const res = await fetch(
+  \`\${process.env.GAMRU_BACKEND_URL}/tournament-leaderboard/\${tournamentId}\`,
+  { headers: { Authorization: \`Bearer \${operatorToken}\` } },
+)
+const { data } = await res.json() // [{ rank, email, name, score }, …]`
+
 const STEPS = [
   {
     icon: Eye,
@@ -83,9 +93,9 @@ const STEPS = [
     icon: Activity,
     title: 'PROGRESS — advance missions & tournaments',
     body:
-      'Progress is driven by facts, not by you setting a number. For missions, push gameplay events (WAGER, CASINO_WIN, DEPOSIT_MADE, LOGIN) and the engine increments every matching objective. For tournaments, submit the player’s points to the leaderboard — Gamru keeps the authoritative running total and re-ranks everyone.',
+      'Progress is driven by facts. For missions, push player events to the engine — event_type must be one of exactly five accepted values (USER_REGISTERED, XP_AWARDED, LEVEL_UP, RANK_UP, DEPOSIT_MADE); these feed XP, level/rank and deposit segmentation. For tournaments, submit the player’s points to the leaderboard — Gamru keeps the authoritative running total and re-ranks everyone.',
     code: { label: 'push a progress event (Node)', code: PROGRESS_EVENT },
-    endpoints: ['gamru-user-missions-progress', 'gamru-tlb-score'],
+    endpoints: ['gamru-user-missions-progress', 'gamru-tlb-score', 'gamru-user-tournaments-standings'],
   },
   {
     icon: Gift,
@@ -176,6 +186,21 @@ export default function MissionsTournaments() {
             </div>
           )
         })}
+      </div>
+
+      {/* reading the leaderboard */}
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+        <div className="flex items-center gap-2 text-amber-600 dark:text-amber-300">
+          <Trophy size={18} />
+          <h3 className="font-semibold text-slate-900 dark:text-white">Render the tournament leaderboard</h3>
+        </div>
+        <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+          After scores are in, read the ranked standings to draw the leaderboard. gamru guards this with an{' '}
+          operator JWT, so call it from your backend with a stored operator token — not the client key.
+        </p>
+        <div className="mt-3">
+          <CodeBlock label="read standings (Node)" code={STANDINGS} />
+        </div>
       </div>
 
       {/* footer pointer */}

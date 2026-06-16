@@ -44,8 +44,11 @@ export default function EndpointCard({ ep }) {
         </div>
       </div>
 
-      {/* Special: the events firehose gets a full event-type catalog. */}
-      {ep.id === 'gamru-integration-events' && <EventsReference />}
+      {/* Special: the events hook gets a full "what it does + event-type" catalog.
+          Shown on both the integration endpoint and its player-side mirror. */}
+      {(ep.id === 'gamru-integration-events' || ep.id === 'gamru-user-missions-progress') && (
+        <EventsReference />
+      )}
     </section>
   )
 }

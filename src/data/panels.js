@@ -39,6 +39,10 @@ export const PANELS = {
         ],
       },
       {
+        section: 'Missions & Tournaments',
+        links: [{ label: 'How to use them', to: '/user/missions-tournaments' }],
+      },
+      {
         section: 'Widgets',
         links: [{ label: 'Overview & setup', to: '/user/widgets' }, ...widgetLinks(PAGE_WIDGETS)],
       },
@@ -72,6 +76,10 @@ export const PANELS = {
           { label: 'Overview', to: '/admin' },
           { label: 'Manage by resource', to: '/admin/api' },
         ],
+      },
+      {
+        section: 'Missions & Tournaments',
+        links: [{ label: 'Create, update, get, delete', to: '/admin/missions-tournaments' }],
       },
       {
         section: 'Widgets',

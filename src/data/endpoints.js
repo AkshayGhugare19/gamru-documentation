@@ -258,9 +258,10 @@ const gamru = [
   },
   {
     id: 'gamru-players-mission-claim',
-    platform: 'gamru', group: 'Players', method: 'POST', path: '/api/players/:id/missions/:missionId/claim',
-    title: 'Claim mission reward', auth: 'client',
-    summary: 'S2S — grant the reward defined on a completed mission and flip the mission to CLAIMED.',
+    platform: 'gamru', group: 'Missions (player)', method: 'POST', path: '/api/players/:id/missions/:missionId/claim',
+    title: 'Claim a mission reward', auth: 'client',
+    summary:
+      'S2S — when a player taps “claim” on a COMPLETED mission, call this. gamru reads the mission’s reward from its own trusted definition (you only name the mission), lands it in the player’s reward ledger and flips the mission to CLAIMED. id is the gamru player id; missionId is the mission’s id.',
     params: { fields: [
       { name: 'id', type: 'uuid', required: true, desc: 'player id' },
       { name: 'missionId', type: 'uuid', required: true },
@@ -343,27 +344,286 @@ const gamru = [
     response: { status: 200, example: j({ success: true, data: { id: 'uuid', archived: true } }) },
   },
 
-  // ---- Tournament leaderboard ----
   {
-    id: 'gamru-tlb-score',
-    platform: 'gamru', group: 'Tournament Leaderboard', method: 'POST', path: '/api/tournament-leaderboard/:tournamentId/score',
-    title: 'Submit tournament score', auth: 'client',
-    summary: 'S2S — the games platform posts a player’s points; gamru updates standings and awards prizes. Idempotent on (email, tournamentId).',
-    params: { fields: [{ name: 'tournamentId', type: 'string', required: true }] },
-    body: { fields: [
-      { name: 'email', type: 'string', required: true },
-      { name: 'name', type: 'string', required: false },
-      { name: 'points', type: 'number', required: true },
+    id: 'gamru-gam-get',
+    platform: 'gamru', group: 'Gamification', method: 'GET', path: '/api/gamification/:feature/:id',
+    title: 'Get one gamification item', auth: 'jwt',
+    summary: 'Fetch a single item of any feature by id (e.g. one mission or one tournament). Returns 404 if it does not exist.',
+    params: { fields: [
+      { name: 'feature', type: 'string', required: true, desc: 'feature key (missions, tournaments, …)' },
+      { name: 'id', type: 'uuid', required: true },
     ]},
-    response: { status: 200, example: j({ success: true, message: 'Score recorded', data: { tournamentId: 't1', email: 'jane@x.com', points: 1500, rank: 3 } }) },
+    response: { status: 200, example: j({ success: true, message: 'Mission fetched successfully', data: { id: 'uuid', name: 'Daily Spinner', status: 'ACTIVE', data: {} } }) },
+  },
+  {
+    id: 'gamru-gam-delete',
+    platform: 'gamru', group: 'Gamification', method: 'DELETE', path: '/api/gamification/:feature/:id',
+    title: 'Delete gamification item', auth: 'jwt',
+    summary: 'Hard-delete an item (mission, tournament, rule, …). This is permanent — prefer archive-by/:id when you only want to hide it from players.',
+    params: { fields: [
+      { name: 'feature', type: 'string', required: true },
+      { name: 'id', type: 'uuid', required: true },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Mission deleted successfully', data: null }) },
+  },
+
+  // ---- Missions (operator authoring — concrete paths of the gamification router) ----
+  {
+    id: 'gamru-missions-add',
+    platform: 'gamru', group: 'Missions', method: 'POST', path: '/api/gamification/missions/add',
+    title: 'Create a mission', auth: 'jwt',
+    summary:
+      'Author a mission. Its objective(s), time window and reward live in the data JSONB blob — that is exactly what the engine reads to track per-player progress and what it grants on claim. Set status ACTIVE to make it live.',
+    body: { fields: [
+      { name: 'name', type: 'string', required: true, desc: '1–200 chars' },
+      { name: 'description', type: 'string', required: false },
+      { name: 'status', type: "'ACTIVE' | 'INACTIVE'", required: false, desc: 'default INACTIVE — set ACTIVE to go live' },
+      { name: 'priority', type: 'number', required: false, desc: 'higher shows first' },
+      { name: 'tags', type: 'string[]', required: false },
+      { name: 'data.objectives', type: 'object[]', required: true, desc: '{ event, measure: "count"|"amount", target, game_category?, min_bet? }' },
+      { name: 'data.time', type: 'object', required: false, desc: '{ type: "lifetime" } or { type: "custom", start, end }' },
+      { name: 'data.reward_type', type: 'string', required: false, desc: 'bonus_cash | free_spins | xp | tokens' },
+      { name: 'data.reward_amount', type: 'number', required: false, desc: 'the reward granted on claim' },
+    ]},
+    bodyExample: {
+      name: 'Spin 10 slots',
+      description: 'Play 10 slot rounds to win bonus cash',
+      status: 'ACTIVE',
+      priority: 1,
+      tags: ['daily'],
+      data: {
+        objectives: [{ event: 'WAGER', measure: 'count', target: 10, game_category: 'slots', min_bet: 1 }],
+        time: { type: 'lifetime' },
+        reward_type: 'bonus_cash',
+        reward_amount: 10,
+      },
+    },
+    response: { status: 201, example: j({ success: true, message: 'Mission created successfully', data: { id: 'uuid', name: 'Spin 10 slots', status: 'ACTIVE' } }) },
+  },
+  {
+    id: 'gamru-missions-paginate',
+    platform: 'gamru', group: 'Missions', method: 'GET', path: '/api/gamification/missions/paginate',
+    title: 'List missions', auth: 'jwt',
+    summary: 'Paginated mission grid with search, status, tag and archived filters — the console’s Missions table.',
+    query: { fields: [
+      { name: 'page / limit', type: 'number', desc: 'default 1 / 25' },
+      { name: 'search', type: 'string' },
+      { name: 'status', type: "'ACTIVE' | 'INACTIVE'" },
+      { name: 'archived', type: 'boolean' },
+      { name: 'tag', type: 'string' },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Mission fetched successfully', data: [{ id: 'uuid', name: 'Spin 10 slots', status: 'ACTIVE' }], total: 1, page: 1, limit: 25 }) },
+  },
+  {
+    id: 'gamru-missions-get',
+    platform: 'gamru', group: 'Missions', method: 'GET', path: '/api/gamification/missions/:id',
+    title: 'Get a mission', auth: 'jwt',
+    summary: 'Fetch one mission by id, including its full data blob (objectives, time, reward).',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Mission fetched successfully', data: { id: 'uuid', name: 'Spin 10 slots', status: 'ACTIVE', data: { objectives: [{ event: 'WAGER', measure: 'count', target: 10 }], reward_type: 'bonus_cash', reward_amount: 10 } } }) },
+  },
+  {
+    id: 'gamru-missions-update',
+    platform: 'gamru', group: 'Missions', method: 'POST', path: '/api/gamification/missions/update-by/:id',
+    title: 'Update a mission', auth: 'jwt',
+    summary: 'Edit any field of a mission. Send the whole object you want saved (same shape as create) — the data blob is replaced, so include the objectives/reward you want to keep.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    bodyExample: {
+      name: 'Spin 15 slots',
+      status: 'ACTIVE',
+      data: {
+        objectives: [{ event: 'WAGER', measure: 'count', target: 15, game_category: 'slots' }],
+        time: { type: 'lifetime' },
+        reward_type: 'bonus_cash',
+        reward_amount: 15,
+      },
+    },
+    response: { status: 200, example: j({ success: true, message: 'Mission updated successfully', data: { id: 'uuid', name: 'Spin 15 slots' } }) },
+  },
+  {
+    id: 'gamru-missions-archive',
+    platform: 'gamru', group: 'Missions', method: 'POST', path: '/api/gamification/missions/archive-by/:id',
+    title: 'Archive / restore a mission', auth: 'jwt',
+    summary: 'Soft-delete: archived=true hides the mission from players but keeps it queryable. Send archived=false to restore it.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    body: { fields: [{ name: 'archived', type: 'boolean', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Mission updated successfully', data: { id: 'uuid', archived: true } }) },
+  },
+  {
+    id: 'gamru-missions-delete',
+    platform: 'gamru', group: 'Missions', method: 'DELETE', path: '/api/gamification/missions/:id',
+    title: 'Delete a mission', auth: 'jwt',
+    summary: 'Permanently remove a mission. Prefer archive when you only want to take it offline — delete is irreversible.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Mission deleted successfully', data: null }) },
+  },
+
+  // ---- Tournaments (operator authoring) ----
+  {
+    id: 'gamru-tournaments-add',
+    platform: 'gamru', group: 'Tournaments', method: 'POST', path: '/api/gamification/tournaments/add',
+    title: 'Create a tournament', auth: 'jwt',
+    summary:
+      'Author a tournament. The schedule, scoring and prize ladder live in the data JSONB blob (presentation/config). The standings themselves are keyed by this tournament’s id — players’ points arrive via the leaderboard score endpoint.',
+    body: { fields: [
+      { name: 'name', type: 'string', required: true, desc: '1–200 chars' },
+      { name: 'description', type: 'string', required: false },
+      { name: 'status', type: "'ACTIVE' | 'INACTIVE'", required: false, desc: 'default INACTIVE — set ACTIVE to go live' },
+      { name: 'priority', type: 'number', required: false },
+      { name: 'tags', type: 'string[]', required: false },
+      { name: 'data.start_date / data.end_date', type: 'ISO date', required: false, desc: 'competition window' },
+      { name: 'data.metric', type: 'string', required: false, desc: 'what a “point” represents, e.g. points / wagered' },
+      { name: 'data.scoring_event', type: 'string', required: false, desc: 'the action that earns points, e.g. WAGER' },
+      { name: 'data.prizes', type: 'object[]', required: false, desc: '[{ rank, reward_type, amount }]' },
+      { name: 'data.banner', type: 'string', required: false, desc: 'banner image URL' },
+    ]},
+    bodyExample: {
+      name: 'Weekend Race',
+      description: 'Top wagerers win bonus cash this weekend',
+      status: 'ACTIVE',
+      priority: 1,
+      tags: ['weekly'],
+      data: {
+        start_date: '2026-06-20T00:00:00Z',
+        end_date: '2026-06-22T23:59:59Z',
+        metric: 'points',
+        scoring_event: 'WAGER',
+        prizes: [
+          { rank: 1, reward_type: 'bonus_cash', amount: 500 },
+          { rank: 2, reward_type: 'bonus_cash', amount: 250 },
+        ],
+        banner: 'https://cdn.example.com/tournaments/weekend-race.png',
+      },
+    },
+    response: { status: 201, example: j({ success: true, message: 'Tournament created successfully', data: { id: 't1', name: 'Weekend Race', status: 'ACTIVE' } }) },
+  },
+  {
+    id: 'gamru-tournaments-paginate',
+    platform: 'gamru', group: 'Tournaments', method: 'GET', path: '/api/gamification/tournaments/paginate',
+    title: 'List tournaments', auth: 'jwt',
+    summary: 'Paginated tournament grid with search, status, tag and archived filters.',
+    query: { fields: [
+      { name: 'page / limit', type: 'number', desc: 'default 1 / 25' },
+      { name: 'search', type: 'string' },
+      { name: 'status', type: "'ACTIVE' | 'INACTIVE'" },
+      { name: 'archived', type: 'boolean' },
+      { name: 'tag', type: 'string' },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Tournament fetched successfully', data: [{ id: 't1', name: 'Weekend Race', status: 'ACTIVE' }], total: 1, page: 1, limit: 25 }) },
+  },
+  {
+    id: 'gamru-tournaments-get',
+    platform: 'gamru', group: 'Tournaments', method: 'GET', path: '/api/gamification/tournaments/:id',
+    title: 'Get a tournament', auth: 'jwt',
+    summary: 'Fetch one tournament definition by id, including its full data blob (schedule, scoring, prizes).',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Tournament fetched successfully', data: { id: 't1', name: 'Weekend Race', status: 'ACTIVE', data: { start_date: '2026-06-20T00:00:00Z', prizes: [{ rank: 1, reward_type: 'bonus_cash', amount: 500 }] } } }) },
+  },
+  {
+    id: 'gamru-tournaments-update',
+    platform: 'gamru', group: 'Tournaments', method: 'POST', path: '/api/gamification/tournaments/update-by/:id',
+    title: 'Update a tournament', auth: 'jwt',
+    summary: 'Edit any field of a tournament. The data blob is replaced wholesale — include the schedule/prizes you want to keep.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    bodyExample: {
+      name: 'Weekend Race (Extended)',
+      status: 'ACTIVE',
+      data: {
+        start_date: '2026-06-20T00:00:00Z',
+        end_date: '2026-06-23T23:59:59Z',
+        metric: 'points',
+        scoring_event: 'WAGER',
+        prizes: [{ rank: 1, reward_type: 'bonus_cash', amount: 750 }],
+      },
+    },
+    response: { status: 200, example: j({ success: true, message: 'Tournament updated successfully', data: { id: 't1', name: 'Weekend Race (Extended)' } }) },
+  },
+  {
+    id: 'gamru-tournaments-archive',
+    platform: 'gamru', group: 'Tournaments', method: 'POST', path: '/api/gamification/tournaments/archive-by/:id',
+    title: 'Archive / restore a tournament', auth: 'jwt',
+    summary: 'Soft-delete: archived=true hides the tournament from players but keeps it queryable. Send archived=false to restore.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    body: { fields: [{ name: 'archived', type: 'boolean', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Tournament updated successfully', data: { id: 't1', archived: true } }) },
+  },
+  {
+    id: 'gamru-tournaments-delete',
+    platform: 'gamru', group: 'Tournaments', method: 'DELETE', path: '/api/gamification/tournaments/:id',
+    title: 'Delete a tournament', auth: 'jwt',
+    summary: 'Permanently remove a tournament definition. Prefer archive when you only want to take it offline.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Tournament deleted successfully', data: null }) },
   },
   {
     id: 'gamru-tlb-get',
-    platform: 'gamru', group: 'Tournament Leaderboard', method: 'GET', path: '/api/tournament-leaderboard/:tournamentId',
-    title: 'Get standings', auth: 'jwt',
-    summary: 'Back-office view of a tournament’s ranked standings.',
-    params: { fields: [{ name: 'tournamentId', type: 'string', required: true }] },
-    response: { status: 200, example: j([{ rank: 1, email: 'a@x.com', points: 4200 }, { rank: 2, email: 'b@x.com', points: 3900 }]) },
+    platform: 'gamru', group: 'Tournaments', method: 'GET', path: '/api/tournament-leaderboard/:tournamentId',
+    title: 'Get tournament standings', auth: 'jwt',
+    summary: 'Back-office view of a tournament’s ranked standings. tournamentId is the id of the tournament you created above.',
+    params: { fields: [{ name: 'tournamentId', type: 'string', required: true, desc: 'the tournament’s id' }] },
+    response: { status: 200, example: j({ success: true, message: 'Leaderboard fetched', data: [{ rank: 1, email: 'a@x.com', name: 'Ace', score: 4200 }, { rank: 2, email: 'b@x.com', name: 'Bea', score: 3900 }] }) },
+  },
+
+  // ---- Missions (player surface — what your platform calls S2S) ----
+  {
+    id: 'gamru-user-missions-get',
+    platform: 'gamru', group: 'Missions (player)', method: 'POST', path: '/api/players/by-email',
+    title: 'Get a player’s missions & progress', auth: 'client',
+    summary:
+      'Read the player snapshot and use the gamification.missions slice — each mission already carries the player’s live progress and status (IN_PROGRESS → COMPLETED → CLAIMED). Poll it (~10s / on focus) so progress earned mid-play shows without a reload. mission_bundles is alongside it for grouped quests.',
+    body: { fields: [{ name: 'email', type: 'string', required: true }] },
+    response: { status: 200, example: j({ success: true, data: { id: 'uuid', email: 'jane@x.com', gamification: { missions: [{ id: 'm1', name: 'Spin 10 slots', status: 'IN_PROGRESS', progress: 4, target: 10, reward_label: '10 bonus cash' }], mission_bundles: [{ id: 'b1', name: 'Daily quests', periodicity: 'DAILY', completed: 1, total: 3 }] } } }) },
+  },
+  {
+    id: 'gamru-user-missions-progress',
+    platform: 'gamru', group: 'Missions (player)', method: 'POST', path: '/api/integration/events',
+    title: 'Advance mission progress (events)', auth: 'client',
+    summary:
+      'You don’t set mission progress directly — you push the gameplay fact and the engine advances every matching mission. A WAGER/CASINO_WIN/DEPOSIT_MADE/LOGIN event (idempotent on event_id) increments the player’s progress for any ACTIVE mission whose objective listens to that event. Requires both the shared service key and your client key.',
+    headers: [
+      { name: 'x-service-key', desc: 'shared service secret — required (serviceAuth)' },
+      { name: 'x-client-auth-key', desc: 'your client key — required (clientAuth)' },
+    ],
+    body: { fields: [
+      { name: 'event_id', type: 'string', required: true, desc: 'unique & stable — dedupe key' },
+      { name: 'event_type', type: 'enum', required: true, desc: 'WAGER | CASINO_WIN | DEPOSIT_MADE | LOGIN | …' },
+      { name: 'external_id', type: 'string', required: true, desc: 'your platform’s user id' },
+      { name: 'email', type: 'string', required: false, desc: 'links the event to the player' },
+      { name: 'amount', type: 'number', required: false, desc: 'used by “amount” objectives' },
+      { name: 'meta', type: 'object', required: false, desc: '{ game_category, game_id, bet } — checked against sub-conditions' },
+    ]},
+    bodyExample: {
+      event_id: 'WAGER:P-1001:r-88421',
+      event_type: 'WAGER',
+      external_id: 'P-1001',
+      email: 'jane@x.com',
+      amount: 5,
+      meta: { game_id: 'g-100', game_category: 'slots', bet: 5 },
+    },
+    response: { status: 200, example: j({ success: true, message: 'Event processed', data: { applied: true, duplicate: false } }) },
+  },
+  {
+    id: 'gamru-tlb-score',
+    platform: 'gamru', group: 'Tournaments (player)', method: 'POST', path: '/api/tournament-leaderboard/:tournamentId/score',
+    title: 'Submit tournament score (progress)', auth: 'client',
+    summary:
+      'S2S — post the player’s points for a tournament; gamru adds them to the running total and re-ranks the standings. tournamentId is the tournament’s id. Safe to re-send: points accumulate per (email, tournamentId).',
+    params: { fields: [{ name: 'tournamentId', type: 'string', required: true, desc: 'the tournament’s id' }] },
+    body: { fields: [
+      { name: 'email', type: 'string', required: true },
+      { name: 'name', type: 'string', required: false, desc: 'display name for the standings' },
+      { name: 'points', type: 'number', required: true, desc: 'points to ADD to the player’s total' },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Score recorded', data: { tournament_id: 't1', email: 'jane@x.com', score: 1500 } }) },
+  },
+  {
+    id: 'gamru-user-tournaments-get',
+    platform: 'gamru', group: 'Tournaments (player)', method: 'POST', path: '/api/players/by-email',
+    title: 'Get a player’s tournaments', auth: 'client',
+    summary:
+      'Read the player snapshot and use the gamification.tournaments slice — the ACTIVE tournaments to show the player. Their standings come from the back-office standings endpoint (or render the position you track from score submissions).',
+    body: { fields: [{ name: 'email', type: 'string', required: true }] },
+    response: { status: 200, example: j({ success: true, data: { id: 'uuid', email: 'jane@x.com', gamification: { tournaments: [{ id: 't1', name: 'Weekend Race', status: 'ACTIVE', data: { end_date: '2026-06-22T23:59:59Z' } }] } } }) },
   },
 
   // ---- CRM: campaigns / segments / templates / triggers / caps ----
@@ -909,6 +1169,10 @@ const USER_ENDPOINT_IDS = new Set([
   'gamru-players-reward-claim',
   'gamru-players-shop-purchase',
   'gamru-tlb-score',
+  // mission & tournament player surface (broken out into their own groups)
+  'gamru-user-missions-get',
+  'gamru-user-missions-progress',
+  'gamru-user-tournaments-get',
 ])
 const BOTH_ENDPOINT_IDS = new Set(['gamru-health', 'gamru-players-get'])
 

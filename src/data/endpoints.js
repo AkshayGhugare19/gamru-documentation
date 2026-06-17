@@ -422,6 +422,19 @@ const gamru = [
     params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
     response: { status: 200, example: j({ success: true, message: 'Mission deleted successfully', data: null }) },
   },
+  {
+    id: 'gamru-missions-participants',
+    platform: 'gamru', group: 'Missions', method: 'GET', path: '/api/gamification/missions/:id/participants',
+    title: 'List participated players', auth: 'jwt',
+    summary:
+      'The players who participated in this mission — the operator-console list behind the “Participated” count. Each row carries the player’s status (IN_PROGRESS / COMPLETED / CLAIMED), source and join date. Filter by player source with ?source=. Participation is pushed by the games platform on join/claim (see the player-side “Record participation” endpoint).',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true, desc: 'mission id' }] },
+    query: { fields: [
+      { name: 'page / limit', type: 'number', desc: 'default 1 / 10' },
+      { name: 'source', type: 'string', desc: 'filter by player source (e.g. GAMRU, GAMIFY_ENGAGE)' },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Participants fetched successfully', data: { data: [{ player_id: 'uuid', external_id: 'P-1001', name: 'Jane', email: 'jane@x.com', status: 'IN_PROGRESS', source: 'GAMIFY_ENGAGE', joined_at: '2026-06-17T10:00:00Z' }], total: 1, page: 1, limit: 10, sources: ['GAMIFY_ENGAGE', 'GAMRU'] } }) },
+  },
 
   // ---- Mission Bundles (operator authoring) ----
   {
@@ -525,6 +538,19 @@ const gamru = [
     summary: 'Permanently remove a bundle definition (the grouped missions themselves are untouched). Prefer archive to take it offline.',
     params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
     response: { status: 200, example: j({ success: true, message: 'Mission Bundle deleted successfully', data: null }) },
+  },
+  {
+    id: 'gamru-bundles-participants',
+    platform: 'gamru', group: 'Mission Bundles', method: 'GET', path: '/api/gamification/mission-bundles/:id/participants',
+    title: 'List participated players', auth: 'jwt',
+    summary:
+      'The players who participated in this bundle — keyed by the bundle id, independent of the missions inside it (a standalone mission play never counts here). Each row carries status, source and join date; filter by ?source=. Participation is pushed by the games platform when a player joins/claims a mission inside the bundle.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true, desc: 'mission-bundle id' }] },
+    query: { fields: [
+      { name: 'page / limit', type: 'number', desc: 'default 1 / 10' },
+      { name: 'source', type: 'string', desc: 'filter by player source' },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Participants fetched successfully', data: { data: [{ player_id: 'uuid', external_id: 'P-1001', name: 'Jane', email: 'jane@x.com', status: 'IN_PROGRESS', source: 'GAMIFY_ENGAGE', joined_at: '2026-06-17T10:00:00Z' }], total: 1, page: 1, limit: 10, sources: ['GAMIFY_ENGAGE', 'GAMRU'] } }) },
   },
 
   // ---- Tournaments (operator authoring) ----
@@ -674,6 +700,22 @@ const gamru = [
     response: { status: 200, example: j({ success: true, message: 'Event processed', data: { applied: true, duplicate: false } }) },
   },
   {
+    id: 'gamru-missions-participate',
+    platform: 'gamru', group: 'Missions (player)', method: 'POST', path: '/api/gamification/missions/:id/participants',
+    title: 'Record participation (join / claim)', auth: 'client',
+    summary:
+      'S2S — tell gamru a player JOINED (or claimed) this mission, so the operator console’s “Participated” count reflects joins, not just claims. Call it on join with status IN_PROGRESS, and again on claim with status CLAIMED. Keyed by (mission id, email): re-sending updates the same row. gamru resolves the player by email and snapshots their source. id is the gamru mission id.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true, desc: 'mission id' }] },
+    body: { fields: [
+      { name: 'email', type: 'string', required: true, desc: 'the player — dedupe + link key' },
+      { name: 'external_id', type: 'string', required: false, desc: 'your platform’s user id' },
+      { name: 'name', type: 'string', required: false, desc: 'display name (else resolved from the player)' },
+      { name: 'status', type: 'string', required: false, desc: 'IN_PROGRESS (join) | COMPLETED | CLAIMED — default IN_PROGRESS' },
+    ]},
+    bodyExample: { email: 'jane@x.com', external_id: 'P-1001', status: 'IN_PROGRESS' },
+    response: { status: 200, example: j({ success: true, message: 'Participation recorded', data: { recorded: true } }) },
+  },
+  {
     id: 'gamru-user-bundles-get',
     platform: 'gamru', group: 'Mission Bundles (player)', method: 'POST', path: '/api/players/by-email',
     title: 'Get a player’s mission bundles', auth: 'client',
@@ -713,11 +755,39 @@ const gamru = [
     response: { status: 200, example: j({ success: true, message: 'Event processed', data: { applied: true, duplicate: false } }) },
   },
   {
+    id: 'gamru-bundles-participate',
+    platform: 'gamru', group: 'Mission Bundles (player)', method: 'POST', path: '/api/gamification/mission-bundles/:id/participants',
+    title: 'Record participation (join / claim)', auth: 'client',
+    summary:
+      'S2S — tell gamru a player joined/claimed a mission INSIDE this bundle. Keyed by the BUNDLE id (not the mission), so the bundle’s participant count is independent of the standalone missions — playing a standalone mission never bumps the bundle. Call on join (IN_PROGRESS) and claim (CLAIMED). id is the gamru mission-bundle id.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true, desc: 'mission-bundle id' }] },
+    body: { fields: [
+      { name: 'email', type: 'string', required: true, desc: 'the player — dedupe + link key' },
+      { name: 'external_id', type: 'string', required: false, desc: 'your platform’s user id' },
+      { name: 'name', type: 'string', required: false, desc: 'display name (else resolved from the player)' },
+      { name: 'status', type: 'string', required: false, desc: 'IN_PROGRESS (join) | COMPLETED | CLAIMED — default IN_PROGRESS' },
+    ]},
+    bodyExample: { email: 'jane@x.com', external_id: 'P-1001', status: 'IN_PROGRESS' },
+    response: { status: 200, example: j({ success: true, message: 'Participation recorded', data: { recorded: true } }) },
+  },
+  {
+    id: 'gamru-bundles-claim',
+    platform: 'gamru', group: 'Mission Bundles (player)', method: 'POST', path: '/api/players/:id/missions/:missionId/claim',
+    title: 'Claim a bundle mission reward', auth: 'client',
+    summary:
+      'A bundle carries no reward of its own — the player claims each COMPLETED mission inside it individually, via the SAME per-mission claim endpoint as the standalone Missions tab. gamru grants the mission’s reward (from its trusted definition) into the player’s reward ledger and flips the mission to CLAIMED. id is the gamru player id; missionId is the mission’s id.',
+    params: { fields: [
+      { name: 'id', type: 'uuid', required: true, desc: 'player id' },
+      { name: 'missionId', type: 'uuid', required: true, desc: 'the bundle mission’s id' },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Mission reward granted successfully', data: { mission_id: 'm1', reward: { id: 'r1', status: 'GRANTED' } } }) },
+  },
+  {
     id: 'gamru-tlb-score',
     platform: 'gamru', group: 'Tournaments (player)', method: 'POST', path: '/api/tournament-leaderboard/:tournamentId/score',
-    title: 'Submit tournament score (progress)', auth: 'client',
+    title: 'Join / score a tournament', auth: 'client',
     summary:
-      'S2S — post the player’s points for a tournament; gamru adds them to the running total and re-ranks the standings. tournamentId is the tournament’s id. Safe to re-send: points accumulate per (email, tournamentId).',
+      'S2S — this is how a player JOINS a tournament: the first score submission creates their standings row (an entry per (email, tournamentId)); later submissions add to the running total and re-rank. There is no separate “join” call — entering the leaderboard IS joining. tournamentId is the tournament’s id. To “join” without points yet, send points: 0. Safe to re-send.',
     params: { fields: [{ name: 'tournamentId', type: 'string', required: true, desc: 'the tournament’s id' }] },
     body: { fields: [
       { name: 'email', type: 'string', required: true },
@@ -1408,8 +1478,11 @@ const USER_ENDPOINT_IDS = new Set([
   // mission & tournament player surface (broken out into their own groups)
   'gamru-user-missions-get',
   'gamru-user-missions-progress',
+  'gamru-missions-participate',
   'gamru-user-bundles-get',
   'gamru-user-bundles-progress',
+  'gamru-bundles-participate',
+  'gamru-bundles-claim',
   'gamru-user-tournaments-get',
   'gamru-user-tournaments-standings',
   // profile / progression / ranks / rewards / shop player surface (own tabs)

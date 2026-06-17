@@ -76,6 +76,9 @@ const gamru = [
     platform: 'gamru', group: 'Clients', method: 'GET', path: '/api/clients/me',
     title: 'Identify current client', auth: 'client',
     summary: 'A service backend calls this at boot to verify its client key is valid and the client is ENABLED. The games platform runs it on startup (verifyGamruClient).',
+    headers: [
+      { name: 'x-client-auth-key', desc: 'your client key — marks the account EXTERNAL to your client' },
+    ],
     response: { status: 200, example: j({ success: true, message: 'Client identified', data: { id: 'uuid', name: 'Lucky Casino', slug: 'lucky-casino', skin_id: 'lc', status: 'ENABLED' } }) },
   },
   {
@@ -882,7 +885,7 @@ const gamru = [
   {
     id: 'gamru-user-ranks-get',
     platform: 'gamru', group: 'Ranks (player)', method: 'POST', path: '/api/players/by-email',
-    title: 'Get ranks & levels', auth: 'client',
+    title: 'Get ranks', auth: 'client',
     summary:
       'gamification.ranks is the full configured ladder of rank tiers; gamification.levels is the per-level XP bands. Render the ranks roadmap and highlight the player’s current tier from gamification.progress.rank_name.',
     body: { fields: [{ name: 'email', type: 'string', required: true }] },

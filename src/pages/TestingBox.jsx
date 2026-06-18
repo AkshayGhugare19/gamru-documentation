@@ -51,11 +51,28 @@ function authHeaderFor(ep, creds) {
   if (ep.auth === 'client') {
     return { name: 'x-client-auth-key', value: creds.clientKey, need: 'client key' }
   }
-  // jwt | admin | player | flex → bearer token
+  if (ep.auth === 'flex') {
+    // operator JWT *or* client key — use whichever is filled, preferring the token.
+    if (creds.token) return { name: 'Authorization', value: `Bearer ${creds.token}`, need: 'Bearer token or client key' }
+    if (creds.clientKey) return { name: 'x-client-auth-key', value: creds.clientKey, need: 'Bearer token or client key' }
+    return { name: 'Authorization', value: '', need: 'Bearer token or client key' }
+  }
+  // jwt | admin | player → bearer token
   return {
     name: 'Authorization',
     value: creds.token ? `Bearer ${creds.token}` : '',
     need: 'Bearer token',
+  }
+}
+
+// Which credential *inputs* to show for the selected endpoint. Base URL is
+// always shown; the secret fields only appear when the endpoint needs them.
+function credNeeds(ep) {
+  const a = ep?.auth
+  return {
+    token: a === 'jwt' || a === 'admin' || a === 'player' || a === 'flex',
+    clientKey: a === 'client' || a === 'flex',
+    serviceKey: !!ep?.headers?.some((h) => h.name === 'x-service-key'),
   }
 }
 
@@ -222,6 +239,7 @@ export default function TestingBox({ audience }) {
 
   // ---- assemble the live request ----
   const authHeader = authHeaderFor(ep, creds)
+  const needs = useMemo(() => credNeeds(ep), [ep])
 
   const resolvedPath = useMemo(() => {
     let p = ep?.path || ''
@@ -245,10 +263,11 @@ export default function TestingBox({ audience }) {
   const effectiveHeaders = useMemo(() => {
     const h = {}
     if (authHeader && authHeader.value) h[authHeader.name] = authHeader.value
+    if (needs.serviceKey && creds.serviceKey) h['x-service-key'] = creds.serviceKey
     if (hasBody(ep) && bodyText.trim()) h['Content-Type'] = 'application/json'
     for (const r of headerRows) if (r.enabled && r.key) h[r.key] = r.value
     return h
-  }, [authHeader, ep, bodyText, headerRows])
+  }, [authHeader, needs, creds.serviceKey, ep, bodyText, headerRows])
 
   // ---- send ----
   const [resp, setResp] = useState(null)
@@ -378,30 +397,41 @@ export default function TestingBox({ audience }) {
               onChange={(v) => setCred({ baseUrl: v })}
               placeholder={DEFAULT_BASE}
             />
-            <CredField
-              label="Bearer token"
-              hint={audience === 'admin' ? 'operator JWT' : 'player / JWT'}
-              secret
-              value={creds.token}
-              onChange={(v) => setCred({ token: v })}
-              placeholder="eyJhbGciOiJIUzI1NiI…"
-            />
-            <CredField
-              label="x-client-auth-key"
-              hint="client key (S2S)"
-              secret
-              value={creds.clientKey}
-              onChange={(v) => setCred({ clientKey: v })}
-              placeholder="ck_live_…"
-            />
-            <CredField
-              label="x-service-key"
-              hint="shared secret (events)"
-              secret
-              value={creds.serviceKey}
-              onChange={(v) => setCred({ serviceKey: v })}
-              placeholder="optional"
-            />
+            {needs.token && (
+              <CredField
+                label="Bearer token"
+                hint={ep.auth === 'flex' ? 'operator JWT (or use client key)' : audience === 'admin' ? 'operator JWT' : 'player / JWT'}
+                secret
+                value={creds.token}
+                onChange={(v) => setCred({ token: v })}
+                placeholder="eyJhbGciOiJIUzI1NiI…"
+              />
+            )}
+            {needs.clientKey && (
+              <CredField
+                label="x-client-auth-key"
+                hint="client key (S2S)"
+                secret
+                value={creds.clientKey}
+                onChange={(v) => setCred({ clientKey: v })}
+                placeholder="ck_live_…"
+              />
+            )}
+            {needs.serviceKey && (
+              <CredField
+                label="x-service-key"
+                hint="shared secret (events)"
+                secret
+                value={creds.serviceKey}
+                onChange={(v) => setCred({ serviceKey: v })}
+                placeholder="shared secret"
+              />
+            )}
+            {ep.auth === 'none' && (
+              <p className="self-center text-xs text-slate-400">
+                This endpoint is public — no credentials required.
+              </p>
+            )}
           </div>
         )}
       </div>

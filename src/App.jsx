@@ -13,6 +13,7 @@ import WidgetsManage from './pages/admin/WidgetsManage'
 import AdminMissionsTournaments from './pages/admin/MissionsTournaments'
 import ApiPage from './pages/ApiPage'
 import EndpointPage from './pages/EndpointPage'
+import TestingBox from './pages/TestingBox'
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/user/api" element={<GamruServiceApi />} />
           <Route path="/user/endpoints" element={<ApiPage platform="gamru" audience="user" />} />
           <Route path="/user/endpoints/:id" element={<EndpointPage />} />
+          <Route path="/user/testing" element={<TestingBox audience="user" />} />
 
           {/* ADMIN panel — manage everything in Gamru */}
           <Route path="/admin" element={<AdminHome />} />
@@ -38,6 +40,7 @@ export default function App() {
           <Route path="/admin/widgets" element={<WidgetsManage />} />
           <Route path="/admin/endpoints" element={<ApiPage platform="gamru" audience="admin" />} />
           <Route path="/admin/endpoints/:id" element={<EndpointPage />} />
+          <Route path="/admin/testing" element={<TestingBox audience="admin" />} />
 
           <Route path="*" element={<Landing />} />
         </Routes>

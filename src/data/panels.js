@@ -56,6 +56,10 @@ export const PANELS = {
         audience: 'user',
         links: [{ label: 'All user endpoints', to: '/user/endpoints' }],
       },
+      {
+        section: 'Testing box',
+        links: [{ label: 'Try user endpoints', to: '/user/testing' }],
+      },
     ],
   },
 
@@ -90,6 +94,10 @@ export const PANELS = {
         platform: 'gamru',
         audience: 'admin',
         links: [{ label: 'All admin endpoints', to: '/admin/endpoints' }],
+      },
+      {
+        section: 'Testing box',
+        links: [{ label: 'Try admin endpoints', to: '/admin/testing' }],
       },
     ],
   },

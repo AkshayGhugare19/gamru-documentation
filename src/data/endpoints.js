@@ -237,18 +237,6 @@ const gamru = [
     response: { status: 200, example: j({ success: true, data: [{ id: 'uuid', reward_type: 'BONUS_CASH', reward: '10.00', status: 'IN_PROGRESS' }] }) },
   },
   {
-    id: 'gamru-players-mission-claim',
-    platform: 'gamru', group: 'Missions (player)', method: 'POST', path: '/api/players/:id/missions/:missionId/claim',
-    title: 'Claim a mission reward', auth: 'client',
-    summary:
-      'S2S — when a player taps “claim” on a COMPLETED mission, call this. gamru reads the mission’s reward from its own trusted definition (you only name the mission), lands it in the player’s reward ledger and flips the mission to CLAIMED. id is the gamru player id; missionId is the mission’s id.',
-    params: { fields: [
-      { name: 'id', type: 'uuid', required: true, desc: 'player id' },
-      { name: 'missionId', type: 'uuid', required: true },
-    ]},
-    response: { status: 200, example: j({ success: true, message: 'Mission reward granted', data: { reward_type: 'XP', reward: '50' } }) },
-  },
-  {
     id: 'gamru-players-campaign-history',
     platform: 'gamru', group: 'Players', method: 'GET', path: '/api/players/:id/campaign-history',
     title: 'Player campaign history', auth: 'jwt',
@@ -662,161 +650,6 @@ const gamru = [
     response: { status: 200, example: j({ success: true, message: 'Leaderboard fetched', data: [{ rank: 1, email: 'a@x.com', name: 'Ace', score: 4200 }, { rank: 2, email: 'b@x.com', name: 'Bea', score: 3900 }] }) },
   },
 
-  // ---- Missions (player surface — what your platform calls S2S) ----
-  {
-    id: 'gamru-user-missions-get',
-    platform: 'gamru', group: 'Missions (player)', method: 'POST', path: '/api/players/by-email',
-    title: 'Get a player’s missions & progress', auth: 'client',
-    summary:
-      'Read the player snapshot and use the gamification.missions slice — each mission already carries the player’s live progress and status (IN_PROGRESS → COMPLETED → CLAIMED). Poll it (~10s / on focus) so progress earned mid-play shows without a reload. mission_bundles is alongside it for grouped quests.',
-    body: { fields: [{ name: 'email', type: 'string', required: true }] },
-    response: { status: 200, example: j({ success: true, data: { id: 'uuid', email: 'jane@x.com', gamification: { missions: [{ id: 'm1', name: 'Spin 10 slots', status: 'IN_PROGRESS', progress: 4, target: 10, reward_label: '10 bonus cash' }], mission_bundles: [{ id: 'b1', name: 'Daily quests', periodicity: 'DAILY', completed: 1, total: 3 }] } } }) },
-  },
-  {
-    id: 'gamru-user-missions-progress',
-    platform: 'gamru', group: 'Missions (player)', method: 'POST', path: '/api/integration/events',
-    title: 'Push player events (feeds progression)', auth: 'client',
-    summary:
-      'The single inbound hook. Push lifecycle / progression facts and the engine links the player, applies XP and updates deposit segmentation — the signals mission & reward logic build on. Idempotent on event_id (a replay never double-counts). The backend validates event_type against EXACTLY the five values below; any other value is rejected with 400. Requires both the shared service key and your client key.',
-    headers: [
-      { name: 'x-service-key', desc: 'shared service secret — required (serviceAuth)' },
-      { name: 'x-client-auth-key', desc: 'your client key — required (clientAuth)' },
-    ],
-    body: { fields: [
-      { name: 'event_id', type: 'string', required: true, desc: 'unique & stable (1–180 chars) — dedupe key' },
-      { name: 'event_type', type: 'enum', required: true, desc: 'USER_REGISTERED | XP_AWARDED | LEVEL_UP | RANK_UP | DEPOSIT_MADE (the only accepted values)' },
-      { name: 'external_id', type: 'string', required: true, desc: 'your platform’s user id (1–120 chars)' },
-      { name: 'origin', type: 'string', required: false, desc: 'your platform name (≤40 chars)' },
-      { name: 'email', type: 'string|null', required: false, desc: 'links USER_REGISTERED → player' },
-      { name: 'amount', type: 'number', required: false, desc: 'XP delta (XP_AWARDED) / deposit amount (DEPOSIT_MADE)' },
-      { name: 'meta', type: 'object', required: false, desc: 'free-form JSON; usual keys by type → DEPOSIT_MADE: { method, currency } · XP_AWARDED: { reason } · LEVEL_UP: { from_level, to_level } · RANK_UP: { from_rank, to_rank } · USER_REGISTERED: (none)' },
-    ]},
-    bodyExample: {
-      event_id: 'DEPOSIT_MADE:P-1001:tx-55021',
-      event_type: 'DEPOSIT_MADE',
-      external_id: 'P-1001',
-      origin: 'lucky-casino',
-      email: 'jane@x.com',
-      amount: 100,
-      meta: { method: 'card', currency: 'USD' },
-    },
-    response: { status: 200, example: j({ success: true, message: 'Event processed', data: { applied: true, duplicate: false } }) },
-  },
-  {
-    id: 'gamru-missions-participate',
-    platform: 'gamru', group: 'Missions (player)', method: 'POST', path: '/api/gamification/missions/:id/participants',
-    title: 'Record participation (join / claim)', auth: 'client',
-    summary:
-      'S2S — tell gamru a player JOINED (or claimed) this mission, so the operator console’s “Participated” count reflects joins, not just claims. Call it on join with status IN_PROGRESS, and again on claim with status CLAIMED. Keyed by (mission id, email): re-sending updates the same row. gamru resolves the player by email and snapshots their source. id is the gamru mission id.',
-    params: { fields: [{ name: 'id', type: 'uuid', required: true, desc: 'mission id' }] },
-    body: { fields: [
-      { name: 'email', type: 'string', required: true, desc: 'the player — dedupe + link key' },
-      { name: 'external_id', type: 'string', required: false, desc: 'your platform’s user id' },
-      { name: 'name', type: 'string', required: false, desc: 'display name (else resolved from the player)' },
-      { name: 'status', type: 'string', required: false, desc: 'IN_PROGRESS (join) | COMPLETED | CLAIMED — default IN_PROGRESS' },
-    ]},
-    bodyExample: { email: 'jane@x.com', external_id: 'P-1001', status: 'IN_PROGRESS' },
-    response: { status: 200, example: j({ success: true, message: 'Participation recorded', data: { recorded: true } }) },
-  },
-  {
-    id: 'gamru-user-bundles-get',
-    platform: 'gamru', group: 'Mission Bundles (player)', method: 'POST', path: '/api/players/by-email',
-    title: 'Get a player’s mission bundles', auth: 'client',
-    summary:
-      'Read the player snapshot and use the gamification.mission_bundles slice — curated quests with their periodicity and completed/total progress. A bundle groups missions but holds no reward itself: render the bundle card, expand to its missions, and claim each completed mission with the mission-claim endpoint (see Missions tab).',
-    body: { fields: [{ name: 'email', type: 'string', required: true }] },
-    response: { status: 200, example: j({ success: true, data: { id: 'uuid', email: 'jane@x.com', gamification: { mission_bundles: [{ id: 'b1', name: 'Daily quests', status: 'ACTIVE', data: { periodicity: 'DAILY', missions: [{ id: 'm1', name: 'Spin 10 slots' }, { id: 'm2', name: 'Make a deposit' }] } }] } } }) },
-  },
-  {
-    id: 'gamru-user-bundles-progress',
-    platform: 'gamru', group: 'Mission Bundles (player)', method: 'POST', path: '/api/integration/events',
-    title: 'Advance bundle progress (events)', auth: 'client',
-    summary:
-      'A bundle carries no progress of its own — its completed/total rolls up from the missions inside it. So you advance a bundle exactly like a mission: push the player event and the engine advances the underlying missions, which re-derives the bundle’s progress on the next snapshot. Same inbound hook as the Missions tab; event_type must be one of EXACTLY the five accepted values, else 400. Idempotent on event_id; needs the shared service key and your client key.',
-    headers: [
-      { name: 'x-service-key', desc: 'shared service secret — required (serviceAuth)' },
-      { name: 'x-client-auth-key', desc: 'your client key — required (clientAuth)' },
-    ],
-    body: { fields: [
-      { name: 'event_id', type: 'string', required: true, desc: 'unique & stable (1–180 chars) — dedupe key' },
-      { name: 'event_type', type: 'enum', required: true, desc: 'USER_REGISTERED | XP_AWARDED | LEVEL_UP | RANK_UP | DEPOSIT_MADE (the only accepted values)' },
-      { name: 'external_id', type: 'string', required: true, desc: 'your platform’s user id (1–120 chars)' },
-      { name: 'origin', type: 'string', required: false, desc: 'your platform name (≤40 chars)' },
-      { name: 'email', type: 'string|null', required: false, desc: 'links USER_REGISTERED → player' },
-      { name: 'amount', type: 'number', required: false, desc: 'XP delta (XP_AWARDED) / deposit amount (DEPOSIT_MADE)' },
-      { name: 'meta', type: 'object', required: false, desc: 'free-form JSON; usual keys by type → DEPOSIT_MADE: { method, currency } · XP_AWARDED: { reason } · LEVEL_UP: { from_level, to_level } · RANK_UP: { from_rank, to_rank } · USER_REGISTERED: (none)' },
-    ]},
-    bodyExample: {
-      event_id: 'DEPOSIT_MADE:P-1001:tx-55021',
-      event_type: 'DEPOSIT_MADE',
-      external_id: 'P-1001',
-      origin: 'lucky-casino',
-      email: 'jane@x.com',
-      amount: 100,
-      meta: { method: 'card', currency: 'USD' },
-    },
-    response: { status: 200, example: j({ success: true, message: 'Event processed', data: { applied: true, duplicate: false } }) },
-  },
-  {
-    id: 'gamru-bundles-participate',
-    platform: 'gamru', group: 'Mission Bundles (player)', method: 'POST', path: '/api/gamification/mission-bundles/:id/participants',
-    title: 'Record participation (join / claim)', auth: 'client',
-    summary:
-      'S2S — tell gamru a player joined/claimed a mission INSIDE this bundle. Keyed by the BUNDLE id (not the mission), so the bundle’s participant count is independent of the standalone missions — playing a standalone mission never bumps the bundle. Call on join (IN_PROGRESS) and claim (CLAIMED). id is the gamru mission-bundle id.',
-    params: { fields: [{ name: 'id', type: 'uuid', required: true, desc: 'mission-bundle id' }] },
-    body: { fields: [
-      { name: 'email', type: 'string', required: true, desc: 'the player — dedupe + link key' },
-      { name: 'external_id', type: 'string', required: false, desc: 'your platform’s user id' },
-      { name: 'name', type: 'string', required: false, desc: 'display name (else resolved from the player)' },
-      { name: 'status', type: 'string', required: false, desc: 'IN_PROGRESS (join) | COMPLETED | CLAIMED — default IN_PROGRESS' },
-    ]},
-    bodyExample: { email: 'jane@x.com', external_id: 'P-1001', status: 'IN_PROGRESS' },
-    response: { status: 200, example: j({ success: true, message: 'Participation recorded', data: { recorded: true } }) },
-  },
-  {
-    id: 'gamru-bundles-claim',
-    platform: 'gamru', group: 'Mission Bundles (player)', method: 'POST', path: '/api/players/:id/missions/:missionId/claim',
-    title: 'Claim a bundle mission reward', auth: 'client',
-    summary:
-      'A bundle carries no reward of its own — the player claims each COMPLETED mission inside it individually, via the SAME per-mission claim endpoint as the standalone Missions tab. gamru grants the mission’s reward (from its trusted definition) into the player’s reward ledger and flips the mission to CLAIMED. id is the gamru player id; missionId is the mission’s id.',
-    params: { fields: [
-      { name: 'id', type: 'uuid', required: true, desc: 'player id' },
-      { name: 'missionId', type: 'uuid', required: true, desc: 'the bundle mission’s id' },
-    ]},
-    response: { status: 200, example: j({ success: true, message: 'Mission reward granted successfully', data: { mission_id: 'm1', reward: { id: 'r1', status: 'GRANTED' } } }) },
-  },
-  {
-    id: 'gamru-tlb-score',
-    platform: 'gamru', group: 'Tournaments (player)', method: 'POST', path: '/api/tournament-leaderboard/:tournamentId/score',
-    title: 'Join / score a tournament', auth: 'client',
-    summary:
-      'S2S — this is how a player JOINS a tournament: the first score submission creates their standings row (an entry per (email, tournamentId)); later submissions add to the running total and re-rank. There is no separate “join” call — entering the leaderboard IS joining. tournamentId is the tournament’s id. To “join” without points yet, send points: 0. Safe to re-send.',
-    params: { fields: [{ name: 'tournamentId', type: 'string', required: true, desc: 'the tournament’s id' }] },
-    body: { fields: [
-      { name: 'email', type: 'string', required: true },
-      { name: 'name', type: 'string', required: false, desc: 'display name for the standings' },
-      { name: 'points', type: 'number', required: true, desc: 'points to ADD to the player’s total' },
-    ]},
-    response: { status: 200, example: j({ success: true, message: 'Score recorded', data: { tournament_id: 't1', email: 'jane@x.com', score: 1500 } }) },
-  },
-  {
-    id: 'gamru-user-tournaments-get',
-    platform: 'gamru', group: 'Tournaments (player)', method: 'POST', path: '/api/players/by-email',
-    title: 'Get a player’s tournaments', auth: 'client',
-    summary:
-      'Read the player snapshot and use the gamification.tournaments slice — the ACTIVE tournaments to show the player. Their standings come from the standings endpoint below (or render the position you track from score submissions).',
-    body: { fields: [{ name: 'email', type: 'string', required: true }] },
-    response: { status: 200, example: j({ success: true, data: { id: 'uuid', email: 'jane@x.com', gamification: { tournaments: [{ id: 't1', name: 'Weekend Race', status: 'ACTIVE', data: { end_date: '2026-06-22T23:59:59Z' } }] } } }) },
-  },
-  {
-    id: 'gamru-user-tournaments-standings',
-    platform: 'gamru', group: 'Tournaments (player)', method: 'GET', path: '/api/tournament-leaderboard/:tournamentId',
-    title: 'Get tournament standings (leaderboard)', auth: 'jwt',
-    summary:
-      'Read the ranked standings to render a tournament’s leaderboard. tournamentId is the tournament’s id. Note: gamru guards this with an operator JWT, so call it from your backend with a stored operator token (this is gamru.tournamentLeaderboard.getStandings(tournamentId, token) in the platform client) — not with the client key.',
-    params: { fields: [{ name: 'tournamentId', type: 'string', required: true, desc: 'the tournament’s id' }] },
-    response: { status: 200, example: j({ success: true, message: 'Leaderboard fetched', data: [{ rank: 1, email: 'a@x.com', name: 'Ace', score: 4200 }, { rank: 2, email: 'jane@x.com', name: 'Jane', score: 3900 }] }) },
-  },
 
   // ---- Profile / progression / ranks / rewards / shop (player surface) ----
   // Almost everything a player sees is one POST /api/players/by-email snapshot;
@@ -1185,6 +1018,273 @@ const gamru = [
     params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
     response: { status: 200, example: j({ success: true, message: 'Widget deleted successfully', data: null }) },
   },
+
+  // =========================================================================
+  // INTEGRATION API — GAMRU is the single source of truth for mission &
+  // tournament PROGRESS. The games platform calls these (x-client-auth-key);
+  // GAMRU computes join / progress / completion / ranking / settlement / claim
+  // and returns the snapshot. The player is resolved by `email` (body for POST,
+  // query for GET); `/users/:userId/*` also accepts your user id as external_id.
+  // =========================================================================
+
+  // ----  Missions (player progress) ----
+  {
+    id: 'gamru-int-missions-list',
+    platform: 'gamru', group: ' Missions', method: 'GET', path: '/api/missions',
+    title: 'List missions with progress', auth: 'client',
+    summary: 'Every active mission with this player’s GAMRU-computed status & progress merged in (AVAILABLE → IN_PROGRESS → COMPLETED → CLAIMED). Replaces reading the missions slice of by-email when you want the live progress directly.',
+    query: { fields: [{ name: 'email', type: 'string', required: true, desc: 'the player' }] },
+    response: { status: 200, example: j({ success: true, message: 'Missions fetched', data: { missions: [{ id: 'm1', name: 'Spin 10 slots', status: 'IN_PROGRESS', progress: 4, target: 10, reward_label: '10 Bonus Cash', completed_at: null, claimed_at: null }] } }) },
+  },
+  {
+    id: 'gamru-int-missions-get',
+    platform: 'gamru', group: ' Missions', method: 'GET', path: '/api/missions/:id',
+    title: 'Get one mission (with progress)', auth: 'client',
+    summary: 'One mission with the player’s progress. Pass ?bundleId= to read the mission on a bundle’s independent track.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true, desc: 'mission id' }] },
+    query: { fields: [
+      { name: 'email', type: 'string', required: true },
+      { name: 'bundleId', type: 'uuid', required: false, desc: 'read on this bundle’s track' },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Mission fetched', data: { id: 'm1', name: 'Spin 10 slots', status: 'IN_PROGRESS', progress: 4, target: 10 } }) },
+  },
+  {
+    id: 'gamru-int-missions-join',
+    platform: 'gamru', group: ' Missions', method: 'POST', path: '/api/missions/:id/join',
+    title: 'Join a mission', auth: 'client',
+    summary: 'Start a mission for the player. On the standalone track GAMRU enforces one IN_PROGRESS mission per bucket (Casino / Sport) — joining another in the same bucket cancels the current one. Pass bundleId to join on that bundle’s independent (non-exclusive) track.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true, desc: 'mission id' }] },
+    body: { fields: [
+      { name: 'email', type: 'string', required: true },
+      { name: 'external_id', type: 'string', required: false, desc: 'your platform’s user id' },
+      { name: 'bundleId', type: 'uuid', required: false, desc: 'join on a bundle track' },
+    ]},
+    bodyExample: { email: 'jane@x.com', external_id: 'P-1001' },
+    response: { status: 200, example: j({ success: true, message: 'Mission joined', data: { id: 'm1', status: 'IN_PROGRESS', progress: 0, target: 10 } }) },
+  },
+  {
+    id: 'gamru-int-missions-cancel',
+    platform: 'gamru', group: ' Missions', method: 'POST', path: '/api/missions/:id/cancel',
+    title: 'Cancel a mission', auth: 'client',
+    summary: 'Abandon a running mission (its progress row is removed; the mission returns to AVAILABLE). A CLAIMED mission cannot be cancelled.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    body: { fields: [
+      { name: 'email', type: 'string', required: true },
+      { name: 'bundleId', type: 'uuid', required: false },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Mission cancelled', data: { cancelled: true } }) },
+  },
+  {
+    id: 'gamru-int-missions-progress-get',
+    platform: 'gamru', group: ' Missions', method: 'GET', path: '/api/missions/:id/progress',
+    title: 'Get mission progress', auth: 'client',
+    summary: 'The player’s current progress for one mission (same shape as get-one). Pass ?bundleId= for a bundle track.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    query: { fields: [
+      { name: 'email', type: 'string', required: true },
+      { name: 'bundleId', type: 'uuid', required: false },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Mission progress fetched', data: { id: 'm1', status: 'IN_PROGRESS', progress: 4, target: 10 } }) },
+  },
+  {
+    id: 'gamru-int-missions-progress-post',
+    platform: 'gamru', group: ' Missions', method: 'POST', path: '/api/missions/:id/progress',
+    title: 'Advance mission from a play', auth: 'client',
+    summary: 'Forward one gameplay event scoped to this mission; GAMRU advances the objective (wager / bet_count / win) and completes it when the target is reached, then returns the updated mission. The broader /activity hook does the same across all of the player’s missions at once.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    body: { fields: [
+      { name: 'email', type: 'string', required: true },
+      { name: 'stake', type: 'number', required: false, desc: 'bet / turnover for this play' },
+      { name: 'win', type: 'boolean', required: false },
+      { name: 'winAmount', type: 'number', required: false, desc: 'amount won (for win objectives)' },
+      { name: 'gameKey', type: 'string', required: false, desc: 'game played (gates game-restricted missions)' },
+      { name: 'bundleId', type: 'uuid', required: false },
+    ]},
+    bodyExample: { email: 'jane@x.com', stake: 5, win: true, winAmount: 12, gameKey: 'aviator' },
+    response: { status: 200, example: j({ success: true, message: 'Mission progress updated', data: { id: 'm1', status: 'IN_PROGRESS', progress: 5, target: 10 } }) },
+  },
+  {
+    id: 'gamru-int-missions-claim',
+    platform: 'gamru', group: ' Missions', method: 'POST', path: '/api/missions/:id/claim',
+    title: 'Claim a mission reward', auth: 'client',
+    summary: 'Claim a COMPLETED mission. GAMRU grants the mission’s reward (from its trusted definition) into the player’s reward ledger and flips the mission to CLAIMED. Pass bundleId to claim on a bundle track.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    body: { fields: [
+      { name: 'email', type: 'string', required: true },
+      { name: 'bundleId', type: 'uuid', required: false },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Mission reward claimed', data: { reward_label: '10 Bonus Cash', mission: { id: 'm1', status: 'CLAIMED' } } }) },
+  },
+
+  // ----  Tournaments (player progress) ----
+  {
+    id: 'gamru-int-tournaments-list',
+    platform: 'gamru', group: ' Tournaments', method: 'GET', path: '/api/tournaments',
+    title: 'List tournaments', auth: 'client',
+    summary: 'All active tournaments with their lifecycle state (SCHEDULED / IN_PROGRESS / ENDED). Opening this also lazily settles any tournament that has ended.',
+    query: { fields: [{ name: 'email', type: 'string', required: false }] },
+    response: { status: 200, example: j({ success: true, message: 'Tournaments fetched', data: { tournaments: [{ id: 't1', name: 'Weekend Race', state: 'IN_PROGRESS', prize_pool: 1000, games: ['aviator'] }] } }) },
+  },
+  {
+    id: 'gamru-int-tournaments-get',
+    platform: 'gamru', group: ' Tournaments', method: 'GET', path: '/api/tournaments/:id',
+    title: 'Get tournament + leaderboard', auth: 'client',
+    summary: 'One tournament plus its ranked leaderboard (the requesting player is flagged is_me). If the tournament has ended it is settled first, so prizes show.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    query: { fields: [{ name: 'email', type: 'string', required: false, desc: 'flags is_me on the board' }] },
+    response: { status: 200, example: j({ success: true, message: 'Tournament fetched', data: { tournament: { id: 't1', name: 'Weekend Race', state: 'ENDED' }, leaderboard: [{ rank: 1, email: 'jane@x.com', name: 'Jane', score: 4200, is_me: true, prize: 500, claimed: false }] } }) },
+  },
+  {
+    id: 'gamru-int-tournaments-join',
+    platform: 'gamru', group: ' Tournaments', method: 'POST', path: '/api/tournaments/:id/join',
+    title: 'Join a tournament', auth: 'client',
+    summary: 'Register the player for a tournament (creates their standings row, marks opted_in for buy-in tournaments). Scoring also auto-registers, so this is optional — use it for an explicit “Enter” button.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    body: { fields: [
+      { name: 'email', type: 'string', required: true },
+      { name: 'external_id', type: 'string', required: false },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Tournament joined', data: { tournament_id: 't1', registered: true, score: 0, status: 'REGISTERED' } }) },
+  },
+  {
+    id: 'gamru-int-tournaments-progress',
+    platform: 'gamru', group: ' Tournaments', method: 'GET', path: '/api/tournaments/:id/progress',
+    title: 'Get tournament progress', auth: 'client',
+    summary: 'The player’s standing in one tournament: live rank, score, plays, and prize / claim status once it has settled.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    query: { fields: [{ name: 'email', type: 'string', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Tournament progress fetched', data: { tournament_id: 't1', registered: true, score: 3900, plays: 12, rank: 2, prize_amount: 0, prize_awarded: false, claimed: false, status: 'REGISTERED' } }) },
+  },
+  {
+    id: 'gamru-int-tournaments-leaderboard',
+    platform: 'gamru', group: ' Tournaments', method: 'GET', path: '/api/tournaments/:id/leaderboard',
+    title: 'Get tournament leaderboard', auth: 'client',
+    summary: 'The ranked standings for a tournament (score DESC). Pass ?email= to flag the requesting player, and ?size= to cap rows.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    query: { fields: [
+      { name: 'email', type: 'string', required: false },
+      { name: 'size', type: 'number', required: false, desc: 'max rows' },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Leaderboard fetched', data: { leaderboard: [{ rank: 1, email: 'a@x.com', name: 'Ace', score: 4200, is_me: false, prize: 0, claimed: false }] } }) },
+  },
+  {
+    id: 'gamru-int-tournaments-score',
+    platform: 'gamru', group: ' Tournaments', method: 'POST', path: '/api/tournaments/:id/score',
+    title: 'Submit a tournament score', auth: 'client',
+    summary: 'Add points the player earned this play. GAMRU accumulates the score, tracks plays/games, and ignores plays of games not in the tournament. Sending it the first time also registers the player.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    body: { fields: [
+      { name: 'email', type: 'string', required: true },
+      { name: 'points', type: 'number', required: true, desc: 'points to ADD' },
+      { name: 'game', type: 'string', required: false, desc: 'game key played' },
+      { name: 'external_id', type: 'string', required: false },
+    ]},
+    bodyExample: { email: 'jane@x.com', points: 150, game: 'aviator' },
+    response: { status: 200, example: j({ success: true, message: 'Score recorded', data: { tournament_id: 't1', score: 4050, applied: 150 } }) },
+  },
+  {
+    id: 'gamru-int-tournaments-claim',
+    platform: 'gamru', group: ' Tournaments', method: 'POST', path: '/api/tournaments/:id/claim',
+    title: 'Claim a tournament prize', auth: 'client',
+    summary: 'Claim the player’s settled prize. On end GAMRU ranks the top-3 (50 / 30 / 20 of the pool) and creates an IN_PROGRESS reward for each winner — so the prize also shows in the player’s rewards, claimable there. This endpoint resolves to that same reward (claim from the tournament page OR the rewards table — granted exactly once) and marks the standing CLAIMED.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    body: { fields: [{ name: 'email', type: 'string', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Tournament prize claimed', data: { prize: 500 } }) },
+  },
+
+  // ----  User progress (aggregate) ----
+  {
+    id: 'gamru-int-user-missions',
+    platform: 'gamru', group: ' User progress', method: 'GET', path: '/api/users/:userId/missions',
+    title: 'All of a user’s missions', auth: 'client',
+    summary: 'Every mission the player has participated in (all tracks), with progress & status. userId is your platform’s user id (external_id); also pass ?email= to resolve directly.',
+    params: { fields: [{ name: 'userId', type: 'string', required: true, desc: 'your user id / external_id' }] },
+    query: { fields: [{ name: 'email', type: 'string', required: false }] },
+    response: { status: 200, example: j({ success: true, message: 'User missions fetched', data: { missions: [{ id: 'm1', name: 'Spin 10 slots', status: 'CLAIMED', progress: 10, target: 10 }] } }) },
+  },
+  {
+    id: 'gamru-int-user-tournaments',
+    platform: 'gamru', group: ' User progress', method: 'GET', path: '/api/users/:userId/tournaments',
+    title: 'A user’s tournament history', auth: 'client',
+    summary: 'Every tournament the player has taken part in, with games played, score, rank, prize and claim status.',
+    params: { fields: [{ name: 'userId', type: 'string', required: true }] },
+    query: { fields: [{ name: 'email', type: 'string', required: false }] },
+    response: { status: 200, example: j({ success: true, message: 'User tournaments fetched', data: { tournaments: [{ tournament_id: 't1', name: 'Weekend Race', industry: 'Casino', plays: 12, xp: 3900, rank: 2, prize: 0, claimed: false }] } }) },
+  },
+  {
+    id: 'gamru-int-user-progress',
+    platform: 'gamru', group: ' User progress', method: 'GET', path: '/api/users/:userId/progress',
+    title: 'A user’s full progress', auth: 'client',
+    summary: 'Missions + tournaments progress in one call — convenient for a player “progress” screen.',
+    params: { fields: [{ name: 'userId', type: 'string', required: true }] },
+    query: { fields: [{ name: 'email', type: 'string', required: false }] },
+    response: { status: 200, example: j({ success: true, message: 'User progress fetched', data: { missions: [], tournaments: [] } }) },
+  },
+  {
+    id: 'gamru-int-user-rewards',
+    platform: 'gamru', group: ' User progress', method: 'GET', path: '/api/users/:userId/rewards',
+    title: 'A user’s rewards', auth: 'client',
+    summary: 'Every reward the player has earned, any status (mission, tournament, rank, reward-shop, manual).',
+    params: { fields: [{ name: 'userId', type: 'string', required: true }] },
+    query: { fields: [{ name: 'email', type: 'string', required: false }] },
+    response: { status: 200, example: j({ success: true, message: 'Rewards fetched', data: { rewards: [{ id: 'r1', gamification_source: 'tournaments', reward_type: 'bonus_cash', reward: 'Weekend Race prize — 500', status: 'GRANTED' }] } }) },
+  },
+  {
+    id: 'gamru-int-user-claims',
+    platform: 'gamru', group: ' User progress', method: 'GET', path: '/api/users/:userId/claims',
+    title: 'A user’s claimed rewards', auth: 'client',
+    summary: 'Only the rewards the player has actually claimed (status GRANTED).',
+    params: { fields: [{ name: 'userId', type: 'string', required: true }] },
+    query: { fields: [{ name: 'email', type: 'string', required: false }] },
+    response: { status: 200, example: j({ success: true, message: 'Claims fetched', data: { claims: [{ id: 'r1', reward_type: 'bonus_cash', reward: 'Weekend Race prize — 500', status: 'GRANTED', granted_date: '2026-06-18T12:00:00Z' }] } }) },
+  },
+  {
+    id: 'gamru-int-activity',
+    platform: 'gamru', group: ' User progress', method: 'POST', path: '/api/activity',
+    title: 'Forward a gameplay / login event', auth: 'client',
+    summary: 'The single ingress for progression: forward a play (or login) and GAMRU advances every relevant mission and, when a tournament + points are supplied, the tournament score. Returns the player’s fresh mission snapshot to cache. kind defaults to "play"; send kind:"login" to tick login missions.',
+    body: { fields: [
+      { name: 'email', type: 'string', required: true },
+      { name: 'external_id', type: 'string', required: false },
+      { name: 'kind', type: "'play' | 'login'", required: false, desc: 'default play' },
+      { name: 'stake', type: 'number', required: false },
+      { name: 'win', type: 'boolean', required: false },
+      { name: 'winAmount', type: 'number', required: false },
+      { name: 'gameKey', type: 'string', required: false },
+      { name: 'missionId', type: 'uuid', required: false, desc: 'scope to a mission launched from a card' },
+      { name: 'bundleId', type: 'uuid', required: false, desc: 'scope to a bundle track' },
+      { name: 'tournamentId', type: 'uuid', required: false, desc: 'also score this tournament' },
+      { name: 'points', type: 'number', required: false, desc: 'tournament points for this play' },
+    ]},
+    bodyExample: { email: 'jane@x.com', kind: 'play', stake: 5, win: true, winAmount: 12, gameKey: 'aviator', tournamentId: 't1', points: 150 },
+    response: { status: 200, example: j({ success: true, message: 'Activity processed', data: { missions: [{ id: 'm1', status: 'IN_PROGRESS', progress: 5, target: 10 }] } }) },
+  },
+
+  // ---- Per-player progress (operator console — admin JWT) ----
+  {
+    id: 'gamru-players-missions',
+    platform: 'gamru', group: 'Players', method: 'GET', path: '/api/players/:id/missions',
+    title: 'Player mission progress', auth: 'jwt',
+    summary: 'Operator view of one player’s mission progress (the Gamification tab’s Missions section) — status, progress/target, completed & claimed timestamps. Reads the same GAMRU progress the games platform consumes via /api/integration.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true, desc: 'player id' }] },
+    response: { status: 200, example: j({ success: true, message: 'Player missions fetched successfully', data: { missions: [{ id: 'm1', name: 'Spin 10 slots', status: 'COMPLETED', progress: 10, target: 10, reward_label: '10 Bonus Cash', completed_at: '2026-06-18T10:00:00Z', claimed_at: null }] } }) },
+  },
+  {
+    id: 'gamru-players-tournaments',
+    platform: 'gamru', group: 'Players', method: 'GET', path: '/api/players/:id/tournaments',
+    title: 'Player tournament standings', auth: 'jwt',
+    summary: 'Operator view of one player’s tournament standings & prizes (the Gamification tab’s Tournaments section) — rank, score, plays, prize and claim status.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true, desc: 'player id' }] },
+    response: { status: 200, example: j({ success: true, message: 'Player tournaments fetched successfully', data: { tournaments: [{ tournament_id: 't1', name: 'Weekend Race', industry: 'Casino', plays: 12, xp: 3900, rank: 2, prize: 0, claimed: false, last_played_at: '2026-06-18T10:00:00Z' }] } }) },
+  },
+  {
+    id: 'gamru-players-bundles',
+    platform: 'gamru', group: 'Players', method: 'GET', path: '/api/players/:id/bundles',
+    title: 'Player mission-bundle progress', auth: 'jwt',
+    summary: 'Operator view of one player’s mission bundles (the Gamification tab’s Mission Bundles section), grouped per bundle: the bundle’s overall completed/total plus each member mission’s per-bundle-track progress. Only bundles the player has joined into are returned.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true, desc: 'player id' }] },
+    response: { status: 200, example: j({ success: true, message: 'Player mission bundles fetched successfully', data: { bundles: [{ id: 'b1', name: 'bundle mission 1', periodicity: 'WEEKLY', bundle_type: 'Custom', completed: 0, total: 2, missions: [{ id: 'm1', name: 'mission1', status: 'IN_PROGRESS', progress: 2, target: 6, reward_label: 'test get 134 token' }] }] } }) },
+  },
 ]
 
 // ===========================================================================
@@ -1474,20 +1574,32 @@ const USER_ENDPOINT_IDS = new Set([
   'gamru-integration-events',
   'gamru-players-by-email',
   'gamru-players-add-xp',
-  'gamru-players-mission-claim',
   'gamru-players-reward-claim',
   'gamru-players-shop-purchase',
-  'gamru-tlb-score',
-  // mission & tournament player surface (broken out into their own groups)
-  'gamru-user-missions-get',
-  'gamru-user-missions-progress',
-  'gamru-missions-participate',
-  'gamru-user-bundles-get',
-  'gamru-user-bundles-progress',
-  'gamru-bundles-participate',
-  'gamru-bundles-claim',
-  'gamru-user-tournaments-get',
-  'gamru-user-tournaments-standings',
+  // mission & tournament player surface — GAMRU owns progress, via the
+  // integration API below (the old by-email / events / leaderboard duplicates
+  // were removed in favour of these).
+  // integration API — GAMRU-owned mission & tournament progress (source of truth)
+  'gamru-int-missions-list',
+  'gamru-int-missions-get',
+  'gamru-int-missions-join',
+  'gamru-int-missions-cancel',
+  'gamru-int-missions-progress-get',
+  'gamru-int-missions-progress-post',
+  'gamru-int-missions-claim',
+  'gamru-int-tournaments-list',
+  'gamru-int-tournaments-get',
+  'gamru-int-tournaments-join',
+  'gamru-int-tournaments-progress',
+  'gamru-int-tournaments-leaderboard',
+  'gamru-int-tournaments-score',
+  'gamru-int-tournaments-claim',
+  'gamru-int-user-missions',
+  'gamru-int-user-tournaments',
+  'gamru-int-user-progress',
+  'gamru-int-user-rewards',
+  'gamru-int-user-claims',
+  'gamru-int-activity',
   // profile / progression / ranks / rewards / shop player surface (own tabs)
   'gamru-user-profile-get',
   'gamru-user-xp-event',

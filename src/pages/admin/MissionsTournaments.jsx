@@ -240,6 +240,29 @@ DELETE /api/gamification/:feature/:id            → delete  (hard)`}
         </div>
       </section>
 
+      {/* Per-player progress (operator console Gamification tab) */}
+      <section className="mt-12">
+        <div className="flex items-center gap-2 text-rose-600 dark:text-rose-300">
+          <Eye size={20} />
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            Inspect a player’s progress
+          </h2>
+        </div>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+          GAMRU is the single source of truth for mission &amp; tournament progress, so the operator console can
+          show it directly. A player’s <strong>Gamification</strong> tab reads these admin (JWT) endpoints —
+          per-player mission progress (status, progress/target, completed &amp; claimed times) and tournament
+          standings (rank, score, prize, claim status) — the same rows the games platform consumes via{' '}
+          <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">/api/integration</code>.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <EndpointLink id="gamru-players-missions" />
+          <EndpointLink id="gamru-players-bundles" />
+          <EndpointLink id="gamru-players-tournaments" />
+          <EndpointLink id="gamru-players-rewards" />
+        </div>
+      </section>
+
       {/* footer pointer */}
       <Link
         to="/admin/endpoints"

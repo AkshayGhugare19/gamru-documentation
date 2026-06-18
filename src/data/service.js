@@ -153,7 +153,7 @@ export const SERVICE_STEPS = [
     title: 'Missions & mission bundles',
     body: 'Operators author missions and bundles in the Gamru console; your platform reads them off the snapshot (with live progress) and renders them. When a mission is COMPLETED, forward the claim and gamru grants the reward and flips it to CLAIMED.',
     code: { label: 'render & claim missions', code: MISSIONS },
-    endpoints: ['gamru-players-by-email', 'gamru-players-mission-claim'],
+    endpoints: ['gamru-int-missions-list', 'gamru-int-missions-claim'],
   },
   {
     title: 'Rewards',
@@ -171,7 +171,7 @@ export const SERVICE_STEPS = [
     title: 'Tournaments & leaderboards',
     body: 'Submit a player’s points as they earn them; gamru keeps the authoritative standings and awards prizes. The call is idempotent on (email, tournamentId), so retries can’t double-count.',
     code: { label: 'submit a score', code: TOURNAMENT },
-    endpoints: ['gamru-tlb-score', 'gamru-tlb-get'],
+    endpoints: ['gamru-int-tournaments-score', 'gamru-int-tournaments-leaderboard', 'gamru-int-tournaments-claim'],
   },
 ]
 
@@ -236,7 +236,7 @@ export const CAPABILITIES = [
     summary: 'Render missions and bundles from the snapshot; claim completed ones.',
     howToUse:
       'Missions and bundles (with live progress) come down on the snapshot — render them directly. When a mission’s status is COMPLETED, POST the claim and gamru grants the reward and marks it CLAIMED.',
-    endpoints: ['gamru-players-by-email', 'gamru-players-mission-claim'],
+    endpoints: ['gamru-int-missions-list', 'gamru-int-missions-claim'],
   },
   {
     key: 'rewards',
@@ -263,6 +263,6 @@ export const CAPABILITIES = [
     summary: 'Submit player scores and read ranked standings.',
     howToUse:
       'POST a player’s running total to /tournament-leaderboard/:id/score; gamru ranks participants and awards prizes. Idempotent on (email, tournamentId).',
-    endpoints: ['gamru-tlb-score', 'gamru-tlb-get'],
+    endpoints: ['gamru-int-tournaments-score', 'gamru-int-tournaments-leaderboard', 'gamru-int-tournaments-claim'],
   },
 ]

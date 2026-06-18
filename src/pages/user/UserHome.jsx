@@ -43,7 +43,7 @@ const JOURNEY = [
     title: 'Do missions',
     does: 'Missions arrive on the snapshot with live progress (4/10). When one is COMPLETED, the user taps claim and you forward it.',
     sees: 'A mission list with progress bars and a “Claim” button when done.',
-    endpoint: 'gamru-players-mission-claim',
+    endpoint: 'gamru-int-missions-claim',
   },
   {
     icon: Layers,
@@ -57,7 +57,7 @@ const JOURNEY = [
     title: 'Compete in tournaments',
     does: 'Active tournaments come down on the snapshot. As the user scores, you submit their running points; Gamru ranks everyone.',
     sees: 'A live leaderboard with their position.',
-    endpoint: 'gamru-tlb-score',
+    endpoint: 'gamru-int-tournaments-score',
   },
   {
     icon: Gift,

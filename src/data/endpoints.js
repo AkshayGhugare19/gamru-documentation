@@ -1116,6 +1116,96 @@ const gamru = [
     response: { status: 200, example: j({ success: true, message: 'Mission reward claimed', data: { reward_label: '10 Bonus Cash', mission: { id: 'm1', status: 'CLAIMED' } } }) },
   },
 
+  // ----  Mission bundles (player progress) ----
+  {
+    id: 'gamru-int-bundles-list',
+    platform: 'gamru', group: ' Mission Bundles', method: 'GET', path: '/api/mission-bundles',
+    title: 'List eligible bundles with progress', auth: 'client',
+    summary: 'Every active mission bundle this player is ELIGIBLE for (segment-gated), each with its grouped member missions and the player’s per-bundle-track progress merged in (independent of the standalone Missions tab and of other bundles). completed/total is the bundle’s overall progress. A bundle carries no reward of its own — the player joins / progresses / claims each member mission individually (pass bundleId on the mission endpoints).',
+    query: { fields: [{ name: 'email', type: 'string', required: true, desc: 'the player' }] },
+    response: { status: 200, example: j({ success: true, message: 'Mission bundles fetched', data: { bundles: [{ id: 'b1', name: 'Weekend Grind', periodicity: 'WEEKLY', bundle_type: 'Custom', eligibility_type: 'All Players', segments: [], completed: 0, total: 2, missions: [{ id: 'm1', name: 'Spin 10 slots', status: 'IN_PROGRESS', progress: 4, target: 10, reward_label: '10 Bonus Cash' }] }] } }) },
+  },
+  {
+    id: 'gamru-int-bundles-get',
+    platform: 'gamru', group: ' Mission Bundles', method: 'GET', path: '/api/mission-bundles/:id',
+    title: 'Get one bundle (with progress)', auth: 'client',
+    summary: 'One bundle with its grouped missions and the player’s per-bundle-track progress. 404 if the bundle is archived/inactive or the player is not eligible for it.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true, desc: 'mission-bundle id' }] },
+    query: { fields: [{ name: 'email', type: 'string', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Mission bundle fetched', data: { id: 'b1', name: 'Weekend Grind', periodicity: 'WEEKLY', bundle_type: 'Custom', completed: 0, total: 2, missions: [{ id: 'm1', name: 'Spin 10 slots', status: 'IN_PROGRESS', progress: 4, target: 10 }] } }) },
+  },
+  {
+    id: 'gamru-int-bundles-mission-join',
+    platform: 'gamru', group: ' Mission Bundles', method: 'POST', path: '/api/mission-bundles/:id/missions/:missionId/join',
+    title: 'Join a mission inside a bundle', auth: 'client',
+    summary: 'Start one of the bundle’s missions on the bundle’s OWN track (its per-bundle period_key). No one-per-bucket exclusivity here — every mission in the bundle can run at once, and progress is independent of the same mission on the standalone Missions tab or in another bundle. Also bumps the operator console’s bundle “Participated” count.',
+    params: { fields: [
+      { name: 'id', type: 'uuid', required: true, desc: 'mission-bundle id' },
+      { name: 'missionId', type: 'uuid', required: true, desc: 'a mission grouped in the bundle' },
+    ]},
+    body: { fields: [
+      { name: 'email', type: 'string', required: true },
+      { name: 'external_id', type: 'string', required: false, desc: 'your platform’s user id' },
+    ]},
+    bodyExample: { email: 'jane@x.com', external_id: 'P-1001' },
+    response: { status: 200, example: j({ success: true, message: 'Bundle mission joined', data: { id: 'm1', status: 'IN_PROGRESS', progress: 0, target: 10 } }) },
+  },
+  {
+    id: 'gamru-int-bundles-mission-cancel',
+    platform: 'gamru', group: ' Mission Bundles', method: 'POST', path: '/api/mission-bundles/:id/missions/:missionId/cancel',
+    title: 'Cancel a mission inside a bundle', auth: 'client',
+    summary: 'Abandon a running bundle mission on the bundle’s track (its progress row is removed; the mission returns to AVAILABLE for that bundle). A CLAIMED mission cannot be cancelled.',
+    params: { fields: [
+      { name: 'id', type: 'uuid', required: true, desc: 'mission-bundle id' },
+      { name: 'missionId', type: 'uuid', required: true },
+    ]},
+    body: { fields: [{ name: 'email', type: 'string', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Bundle mission cancelled', data: { cancelled: true } }) },
+  },
+  {
+    id: 'gamru-int-bundles-mission-progress-get',
+    platform: 'gamru', group: ' Mission Bundles', method: 'GET', path: '/api/mission-bundles/:id/missions/:missionId/progress',
+    title: 'Get a bundle mission’s progress', auth: 'client',
+    summary: 'The player’s progress for one mission on this bundle’s track (same shape as a standalone mission).',
+    params: { fields: [
+      { name: 'id', type: 'uuid', required: true, desc: 'mission-bundle id' },
+      { name: 'missionId', type: 'uuid', required: true },
+    ]},
+    query: { fields: [{ name: 'email', type: 'string', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Bundle mission progress fetched', data: { id: 'm1', status: 'IN_PROGRESS', progress: 4, target: 10 } }) },
+  },
+  {
+    id: 'gamru-int-bundles-mission-progress-post',
+    platform: 'gamru', group: ' Mission Bundles', method: 'POST', path: '/api/mission-bundles/:id/missions/:missionId/progress',
+    title: 'Advance a bundle mission from a play', auth: 'client',
+    summary: 'Forward one gameplay event scoped to a mission on this bundle’s track; GAMRU advances the objective (wager / bet_count / win), completes it at target, and returns the updated mission.',
+    params: { fields: [
+      { name: 'id', type: 'uuid', required: true, desc: 'mission-bundle id' },
+      { name: 'missionId', type: 'uuid', required: true },
+    ]},
+    body: { fields: [
+      { name: 'email', type: 'string', required: true },
+      { name: 'stake', type: 'number', required: false, desc: 'bet / turnover for this play' },
+      { name: 'win', type: 'boolean', required: false },
+      { name: 'winAmount', type: 'number', required: false },
+      { name: 'gameKey', type: 'string', required: false, desc: 'gates game-restricted missions' },
+    ]},
+    bodyExample: { email: 'jane@x.com', stake: 5, win: true, winAmount: 12, gameKey: 'aviator' },
+    response: { status: 200, example: j({ success: true, message: 'Bundle mission progress updated', data: { id: 'm1', status: 'IN_PROGRESS', progress: 5, target: 10 } }) },
+  },
+  {
+    id: 'gamru-int-bundles-mission-claim',
+    platform: 'gamru', group: ' Mission Bundles', method: 'POST', path: '/api/mission-bundles/:id/missions/:missionId/claim',
+    title: 'Claim a bundle mission reward', auth: 'client',
+    summary: 'Claim a COMPLETED mission on this bundle’s track. GAMRU grants the mission’s reward into the player’s ledger and flips it to CLAIMED, then bumps the operator console’s bundle “Participated” count.',
+    params: { fields: [
+      { name: 'id', type: 'uuid', required: true, desc: 'mission-bundle id' },
+      { name: 'missionId', type: 'uuid', required: true },
+    ]},
+    body: { fields: [{ name: 'email', type: 'string', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Bundle mission reward claimed', data: { reward_label: '10 Bonus Cash', mission: { id: 'm1', status: 'CLAIMED' } } }) },
+  },
+
   // ----  Tournaments (player progress) ----
   {
     id: 'gamru-int-tournaments-list',
@@ -1422,24 +1512,56 @@ const games = [
     response: { status: 200, example: j({ success: true }) },
   },
 
-  // Mission bundles
+  // Mission bundles — each per-mission action proxies to the dedicated gamru
+  // mission-bundle endpoint (POST /api/mission-bundles/:id/missions/:missionId/*),
+  // so the bundle's independent track is owned end-to-end by gamru.
   {
     id: 'games-bundles-list',
     platform: 'games', group: 'Mission Bundles', method: 'GET', path: '/api/mission-bundles',
     title: 'List bundles', auth: 'player',
-    summary: 'Curated mission groups (with periodicity + progress).',
-    response: { status: 200, example: j({ bundles: [{ id: 'uuid', name: 'Daily quests', periodicity: 'DAILY', completed: 2, total: 5 }] }) },
+    summary: 'Curated mission groups the player is eligible for (with periodicity + grouped progress). Branding comes from the gamru profile payload; each bundle’s grouped missions carry the player’s per-bundle-track progress.',
+    response: { status: 200, example: j({ branding: { banner_desktop: '...', banner_mobile: '...' }, bundles: [{ id: 'uuid', name: 'Daily quests', periodicity: 'DAILY', completed: 2, total: 5, missions: [{ id: 'm1', name: 'Spin 10x', status: 'IN_PROGRESS', progress: 4, target: 10 }] }] }) },
+  },
+  {
+    id: 'games-bundles-get',
+    platform: 'games', group: 'Mission Bundles', method: 'GET', path: '/api/mission-bundles/:id',
+    title: 'Get one bundle', auth: 'player',
+    summary: 'One bundle with its grouped missions + the player’s per-bundle-track progress. 404 if the player is not eligible for it.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true, desc: 'bundle id' }] },
+    response: { status: 200, example: j({ id: 'uuid', name: 'Daily quests', periodicity: 'DAILY', completed: 2, total: 5, missions: [{ id: 'm1', status: 'IN_PROGRESS', progress: 4, target: 10 }] }) },
+  },
+  {
+    id: 'games-bundles-join',
+    platform: 'games', group: 'Mission Bundles', method: 'POST', path: '/api/mission-bundles/:bundleId/missions/:missionId/join',
+    title: 'Join mission in bundle', auth: 'player',
+    summary: 'Join a mission that belongs to a bundle on the bundle’s own track (independent of the standalone Missions tab; no bucket exclusivity). Proxies to gamru POST /api/mission-bundles/:bundleId/missions/:missionId/join.',
+    params: { fields: [
+      { name: 'bundleId', type: 'uuid', required: true },
+      { name: 'missionId', type: 'uuid', required: true },
+    ]},
+    response: { status: 200, example: j({ id: 'm1', status: 'IN_PROGRESS', progress: 0, target: 10 }) },
   },
   {
     id: 'games-bundles-claim',
     platform: 'games', group: 'Mission Bundles', method: 'POST', path: '/api/mission-bundles/:bundleId/missions/:missionId/claim',
     title: 'Claim mission in bundle', auth: 'player',
-    summary: 'Claim a mission that belongs to a bundle (independent track; no bucket exclusivity).',
+    summary: 'Claim a completed mission on a bundle’s independent track. Proxies to gamru POST /api/mission-bundles/:bundleId/missions/:missionId/claim, which grants the reward and bumps the operator console’s bundle “Participated” count.',
     params: { fields: [
       { name: 'bundleId', type: 'uuid', required: true },
       { name: 'missionId', type: 'uuid', required: true },
     ]},
     response: { status: 200, example: j({ reward_label: '1 Free Spin' }) },
+  },
+  {
+    id: 'games-bundles-cancel',
+    platform: 'games', group: 'Mission Bundles', method: 'POST', path: '/api/mission-bundles/:bundleId/missions/:missionId/cancel',
+    title: 'Cancel mission in bundle', auth: 'player',
+    summary: 'Abandon a running mission on a bundle’s track (returns it to AVAILABLE for that bundle only). Proxies to gamru POST /api/mission-bundles/:bundleId/missions/:missionId/cancel.',
+    params: { fields: [
+      { name: 'bundleId', type: 'uuid', required: true },
+      { name: 'missionId', type: 'uuid', required: true },
+    ]},
+    response: { status: 200, example: j({ success: true }) },
   },
 
   // Tournaments
@@ -1587,6 +1709,15 @@ const USER_ENDPOINT_IDS = new Set([
   'gamru-int-missions-progress-get',
   'gamru-int-missions-progress-post',
   'gamru-int-missions-claim',
+  // mission-bundle player surface — eligible bundles + per-member-mission
+  // lifecycle on the bundle's own track.
+  'gamru-int-bundles-list',
+  'gamru-int-bundles-get',
+  'gamru-int-bundles-mission-join',
+  'gamru-int-bundles-mission-cancel',
+  'gamru-int-bundles-mission-progress-get',
+  'gamru-int-bundles-mission-progress-post',
+  'gamru-int-bundles-mission-claim',
   'gamru-int-tournaments-list',
   'gamru-int-tournaments-get',
   'gamru-int-tournaments-join',

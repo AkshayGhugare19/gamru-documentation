@@ -792,12 +792,45 @@ const gamru = [
     response: { status: 200, example: j({ success: true, data: [{ id: 'uuid', name: 'Welcome series', status: 'SCHEDULED' }], total: 1 }) },
   },
   {
+    id: 'gamru-campaigns-get',
+    platform: 'gamru', group: 'CRM — Campaigns', method: 'GET', path: '/api/campaigns/:id',
+    title: 'Get campaign', auth: 'jwt',
+    summary: 'Fetch one campaign with its channel, template, segment and trigger config.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    response: { status: 200, example: j({ success: true, data: { id: 'uuid', name: 'Welcome series', status: 'SCHEDULED', channel: 'ON_SITE', template_id: 'tpl1', trigger: 'Event: Registration' } }) },
+  },
+  {
+    id: 'gamru-campaigns-update',
+    platform: 'gamru', group: 'CRM — Campaigns', method: 'POST', path: '/api/campaigns/update-by/:id',
+    title: 'Update campaign', auth: 'jwt',
+    summary: 'Edit a campaign — its channel, template, segment, trigger or schedule. An event campaign only delivers once it has BOTH a template_id and a matching segment.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    response: { status: 200, example: j({ success: true, data: { id: 'uuid', name: 'Welcome series (v2)' } }) },
+  },
+  {
+    id: 'gamru-campaigns-send',
+    platform: 'gamru', group: 'CRM — Campaigns', method: 'POST', path: '/api/campaigns/send/:id',
+    title: 'Send campaign now', auth: 'jwt',
+    summary:
+      'Execute the campaign immediately: resolve its segment to real players, render the template (tokens like {{name}}), enforce consent + frequency caps + unsubscribes, write each player’s on-site inbox row and record SENT / DELIVERED analytics. This is the manual counterpart to the event trigger (POST /api/integration/events).',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Campaign sent', data: { campaign_id: 'uuid', recipients: 128, delivered: 124, suppressed: 4 } }) },
+  },
+  {
     id: 'gamru-campaigns-archive',
     platform: 'gamru', group: 'CRM — Campaigns', method: 'POST', path: '/api/campaigns/archive/:id',
     title: 'Archive / restore campaign', auth: 'jwt',
     summary: 'Soft-delete a campaign; POST /api/campaigns/restore/:id brings it back.',
     params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
     response: { status: 200, example: j({ success: true, data: { id: 'uuid', status: 'ARCHIVED' } }) },
+  },
+  {
+    id: 'gamru-campaigns-delete',
+    platform: 'gamru', group: 'CRM — Campaigns', method: 'DELETE', path: '/api/campaigns/:id',
+    title: 'Delete campaign', auth: 'jwt',
+    summary: 'Permanently remove a campaign. Prefer archive when you only want to take it offline — delete is irreversible.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Campaign deleted successfully', data: null }) },
   },
   {
     id: 'gamru-segments-add',
@@ -1350,6 +1383,61 @@ const gamru = [
     response: { status: 200, example: j({ success: true, message: 'Activity processed', data: { missions: [{ id: 'm1', status: 'IN_PROGRESS', progress: 5, target: 10 }] } }) },
   },
 
+  // ---- Campaign inbox (player surface — the READ side of campaign delivery) ----
+  // Campaigns are authored by operators (CRM, admin) and delivered to the
+  // player's on-site inbox. The games platform reads/acks them over the client
+  // key, resolving the player by email — exactly like the mission/tournament
+  // integration surface above. GAMRU owns rendering, consent and analytics.
+  {
+    id: 'gamru-int-inbox-list',
+    platform: 'gamru', group: ' Inbox', method: 'POST', path: '/api/inbox/list',
+    title: 'List the player’s inbox', auth: 'client',
+    summary:
+      'The player’s delivered campaign messages plus the unread badge count. POST so the email travels in the body (same contract as /players/by-email). Poll it (or refresh on focus) to keep the badge live; pass unread_only to fetch just the unseen ones.',
+    body: { fields: [
+      { name: 'email', type: 'string', required: true, desc: 'the player' },
+      { name: 'page / limit', type: 'number', required: false, desc: 'default 1 / 20 (limit capped at 100)' },
+      { name: 'unread_only', type: 'boolean', required: false, desc: 'only messages not yet read' },
+    ]},
+    bodyExample: { email: 'jane@x.com', page: 1, limit: 20, unread_only: false },
+    response: { status: 200, example: j({ success: true, message: 'Inbox fetched successfully', data: { unread_count: 2, items: [{ id: 'd1', campaign_id: 'c1', channel: 'ON_SITE', title: 'Welcome bonus', body: 'Hi Jane, here’s 50 free spins…', status: 'DELIVERED', read: false, event_label: 'Event: Registration', event_at: '2026-06-20T10:00:00Z', read_at: null }], pagination: { total: 2, page: 1, limit: 20, totalPages: 1 } } }) },
+  },
+  {
+    id: 'gamru-int-inbox-read',
+    platform: 'gamru', group: ' Inbox', method: 'POST', path: '/api/inbox/:id/read',
+    title: 'Mark a message read', auth: 'client',
+    summary:
+      'Mark one delivered message opened when the player views it. GAMRU stamps read_at and records a real OPEN engagement event against the campaign’s analytics. id is the delivery id from the inbox list.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true, desc: 'delivery id from the inbox list' }] },
+    body: { fields: [{ name: 'email', type: 'string', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Message marked as read', data: { id: 'd1', status: 'OPEN', read: true, read_at: '2026-06-20T10:05:00Z' } }) },
+  },
+  {
+    id: 'gamru-int-inbox-click',
+    platform: 'gamru', group: ' Inbox', method: 'POST', path: '/api/inbox/:id/click',
+    title: 'Record a message click', auth: 'client',
+    summary:
+      'Record the player tapping the message’s CTA. GAMRU marks it read (if not already) and records a real CLICK engagement event for the campaign’s analytics funnel.',
+    params: { fields: [{ name: 'id', type: 'uuid', required: true, desc: 'delivery id from the inbox list' }] },
+    body: { fields: [{ name: 'email', type: 'string', required: true }] },
+    response: { status: 200, example: j({ success: true, message: 'Message click recorded', data: { id: 'd1', status: 'CLICKED', read: true } }) },
+  },
+  {
+    id: 'gamru-int-inbox-unsubscribe',
+    platform: 'gamru', group: ' Inbox', method: 'POST', path: '/api/inbox/unsubscribe',
+    title: 'Unsubscribe from a channel', auth: 'client',
+    summary:
+      'Opt the player out of a channel. GAMRU flips the matching consent flag off (so future deliveries on that channel are suppressed) and writes an unsubscribe report for the operator audit. Defaults to the ON_SITE channel.',
+    body: { fields: [
+      { name: 'email', type: 'string', required: true },
+      { name: 'channel', type: "'ON_SITE' | 'EMAIL' | 'SMS' | 'WEB_PUSH' | 'PUSH'", required: false, desc: 'default ON_SITE' },
+      { name: 'reason', type: 'string', required: false, desc: 'free-text opt-out reason' },
+      { name: 'campaign_name', type: 'string', required: false, desc: 'the campaign that prompted it' },
+    ]},
+    bodyExample: { email: 'jane@x.com', channel: 'EMAIL', reason: 'Too many emails' },
+    response: { status: 200, example: j({ success: true, message: 'Unsubscribed successfully', data: { unsubscribed: true, channel: 'EMAIL' } }) },
+  },
+
   // ---- Per-player progress (operator console — admin JWT) ----
   {
     id: 'gamru-players-missions',
@@ -1731,6 +1819,11 @@ const USER_ENDPOINT_IDS = new Set([
   'gamru-int-user-rewards',
   'gamru-int-user-claims',
   'gamru-int-activity',
+  // campaign inbox player surface — the read side of campaign delivery
+  'gamru-int-inbox-list',
+  'gamru-int-inbox-read',
+  'gamru-int-inbox-click',
+  'gamru-int-inbox-unsubscribe',
   // profile / progression / ranks / rewards / shop player surface (own tabs)
   'gamru-user-profile-get',
   'gamru-user-xp-event',

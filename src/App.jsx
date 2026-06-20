@@ -7,10 +7,12 @@ import GamruServiceApi from './pages/GamruServiceApi'
 import WidgetsGuide from './pages/user/WidgetsGuide'
 import WidgetTypePage from './pages/user/WidgetTypePage'
 import UserMissionsTournaments from './pages/user/MissionsTournaments'
+import UserCampaigns from './pages/user/Campaigns'
 import AdminHome from './pages/admin/AdminHome'
 import AdminApi from './pages/admin/AdminApi'
 import WidgetsManage from './pages/admin/WidgetsManage'
 import AdminMissionsTournaments from './pages/admin/MissionsTournaments'
+import AdminCampaigns from './pages/admin/Campaigns'
 import ApiPage from './pages/ApiPage'
 import EndpointPage from './pages/EndpointPage'
 import TestingBox from './pages/TestingBox'
@@ -28,6 +30,7 @@ export default function App() {
           <Route path="/user/widgets" element={<WidgetsGuide />} />
           <Route path="/user/widgets/:type" element={<WidgetTypePage />} />
           <Route path="/user/missions-tournaments" element={<UserMissionsTournaments />} />
+          <Route path="/user/campaigns" element={<UserCampaigns />} />
           <Route path="/user/api" element={<GamruServiceApi />} />
           <Route path="/user/endpoints" element={<ApiPage platform="gamru" audience="user" />} />
           <Route path="/user/endpoints/:id" element={<EndpointPage />} />
@@ -37,6 +40,7 @@ export default function App() {
           <Route path="/admin" element={<AdminHome />} />
           <Route path="/admin/api" element={<AdminApi />} />
           <Route path="/admin/missions-tournaments" element={<AdminMissionsTournaments />} />
+          <Route path="/admin/campaigns" element={<AdminCampaigns />} />
           <Route path="/admin/widgets" element={<WidgetsManage />} />
           <Route path="/admin/endpoints" element={<ApiPage platform="gamru" audience="admin" />} />
           <Route path="/admin/endpoints/:id" element={<EndpointPage />} />

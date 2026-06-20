@@ -43,6 +43,10 @@ export const PANELS = {
         links: [{ label: 'How to use them', to: '/user/missions-tournaments' }],
       },
       {
+        section: 'Campaigns & Inbox',
+        links: [{ label: 'Deliver & render messages', to: '/user/campaigns' }],
+      },
+      {
         section: 'Widgets',
         links: [{ label: 'Overview & setup', to: '/user/widgets' }, ...widgetLinks(PAGE_WIDGETS)],
       },
@@ -84,6 +88,10 @@ export const PANELS = {
       {
         section: 'Missions & Tournaments',
         links: [{ label: 'Create, update, get, delete', to: '/admin/missions-tournaments' }],
+      },
+      {
+        section: 'Campaigns',
+        links: [{ label: 'Author, send & trigger', to: '/admin/campaigns' }],
       },
       {
         section: 'Widgets',

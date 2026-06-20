@@ -26,7 +26,7 @@ export const EVENTS = [
     type: 'USER_REGISTERED',
     category: 'Lifecycle',
     action: 'A player creates an account on the casino.',
-    drives: 'Account linking — maps (origin, external_id) → gamru player by email. Only establishes the link; nothing else is applied.',
+    drives: 'Account linking — maps (origin, external_id) → gamru player by email. Also fires the "Event: Registration" campaign trigger, delivering any matching welcome campaign to the player’s inbox.',
     fields: ['event_id', 'external_id', 'email'],
     example: {
       event_id: 'REG:P-1001',
@@ -40,7 +40,7 @@ export const EVENTS = [
     type: 'DEPOSIT_MADE',
     category: 'Wallet',
     action: 'A player funds their wallet.',
-    drives: 'Deposit segmentation — moves the player from the “no_deposit” to the “depositor” segment.',
+    drives: 'Deposit segmentation — moves the player from the “no_deposit” to the “depositor” segment. Also fires the "Event: First Deposit" campaign trigger, delivering any matching deposit campaign to the player’s inbox.',
     fields: ['event_id', 'external_id', 'amount'],
     example: {
       event_id: 'DEPOSIT_MADE:P-1001:tx-55021',

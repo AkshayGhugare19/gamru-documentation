@@ -375,6 +375,59 @@ export const FLOWS = [
     ],
     notes: ['Unsubscribes are recorded via /api/unsubscribe-reports and suppress future sends.'],
   },
+
+  {
+    id: 'rank-level-bonuses',
+    title: 'Rank & level bonuses',
+    tag: 'Economy',
+    intro:
+      'Bonuses are DEFINED on the games platform (name, type, amount, and amount_type RM/BM) but TRIGGERED by GAMRU progression. An operator pins a bonus id onto a rank or a specific level; reaching that level (or completing every level in the rank) grants the bonus to the player, who claims it on the casino into a Real-Money / Bonus-Money wallet. GAMRU keeps a read-only mirror of both the bonus definitions and the claims so operators can see everything in one place.',
+    actors: ['Operator', 'Player', 'Games platform', 'Gamru engine'],
+    steps: [
+      {
+        title: 'Admin — define the bonus (games platform)',
+        body: 'On the games platform an admin creates a bonus: bonusName, bonusType (e.g. BONUS_CASH), amount, amountType (RM = Real Money, BM = Bonus Money) and status. Each bonus gets a UUID to copy. (These definitions live on the games platform; GAMRU only mirrors them — see the last step.)',
+      },
+      {
+        title: 'Admin — pin the bonus id on a rank/level (GAMRU)',
+        body: 'In the GAMRU Ranks wizard the operator pastes bonus UUIDs: per-level via the level grid (data.levels[].bonus_ids) and/or rank-wide (data.bonus_ids). On save GAMRU fetches each pinned bonus definition from the games platform and snapshots it into the `bonuses` table (source = Games platform).',
+        endpoints: ['gamru-gam-add', 'gamru-bonuses-list'],
+      },
+      {
+        title: 'GAMRU delivers the pinned ids in the player payload',
+        body: 'When the games platform reads a player (POST /players/by-email) GAMRU returns the rank ladder with each level’s bonus_ids and each rank’s bonus_ids. The games platform reconciles grants on every profile read — no GAMRU→games call is needed for granting.',
+        endpoints: ['gamru-players-by-email'],
+      },
+      {
+        title: 'Player — earn the bonus',
+        body: 'A LEVEL bonus is granted as soon as the player reaches that level. A RANK bonus is granted only once the player has completed EVERY level in that rank (their current level reaches the rank’s top level). The grant is idempotent and surfaces as an IN_PROGRESS reward with a Claim button.',
+      },
+      {
+        title: 'Player — claim into the RM/BM wallet',
+        body: 'The player claims on the casino. An RM bonus credits real money, a BM bonus credits bonus money, and the total wallet balance is re-summed (balance = real_money + bonus_money). A second claim is rejected.',
+      },
+      {
+        title: 'Claim is mirrored back to GAMRU',
+        body: 'After a successful claim the games platform fire-and-forgets the claim to GAMRU, which records it in the `user_bonuses` ledger (user_id, source_type LEVEL/RANK, source_id, amount, amount_type, source) and refreshes the bonus snapshot. Operators view synced bonuses and claims in GAMRU → Gamification → Bonuses (two tabs, searchable, paginated).',
+        endpoints: ['gamru-user-bonuses-record', 'gamru-user-bonuses-list'],
+      },
+    ],
+    sequence: [
+      'Operator -> Gamru: POST /api/gamification/ranks/add (data.levels[].bonus_ids, data.bonus_ids)',
+      'Gamru -> Games: GET /api/bonuses/catalog/:id (snapshot definition)',
+      'Games -> Gamru: POST /api/players/by-email (reads levels[].bonus_ids, ranks[].bonus_ids)',
+      'Games -> Games: reconcile grants on profile read (level reached / rank completed)',
+      'Player -> Games: claim bonus -> credit RM/BM wallet',
+      'Games -> Gamru: POST /api/user-bonuses/record (mirror the claim)',
+      'Operator -> Gamru: GET /api/bonuses , GET /api/user-bonuses',
+    ],
+    notes: [
+      'amount_type RM credits real money, BM credits bonus money; balance = real_money + bonus_money.',
+      'LEVEL bonus = granted on reaching the level. RANK bonus = granted only after ALL levels in the rank are completed.',
+      'GAMRU’s bonuses / user_bonuses tables are a read mirror — the bonus definitions and the wallet credit are owned by the games platform.',
+      'Granting needs no GAMRU→games call (ids ride the player payload); only the snapshot fetch and the claim-mirror cross platforms.',
+    ],
+  },
 ]
 
 export function flowById(id) {

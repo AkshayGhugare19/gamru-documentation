@@ -265,7 +265,7 @@ const gamru = [
     id: 'gamru-gam-add',
     platform: 'gamru', group: 'Gamification', method: 'POST', path: '/api/gamification/:feature/add',
     title: 'Create gamification item', auth: 'jwt',
-    summary: 'Create a mission, bundle, rank, rule, tournament, etc. Feature-specific config lives in the data JSONB blob (e.g. a mission’s objectives, a rank’s level ladder).',
+    summary: 'Create a mission, bundle, rank, rule, tournament, etc. Feature-specific config lives in the data JSONB blob (e.g. a mission’s objectives, a rank’s level ladder). For RANKS you can pin Games platform bonus IDs: per-level via data.levels[].bonus_ids and rank-wide via data.bonus_ids — on save GAMRU fetches those bonus definitions from the games platform and snapshots them into the Bonuses table (see the Bonuses group).',
     params: { fields: [{ name: 'feature', type: 'string', required: true }] },
     body: { fields: [
       { name: 'name', type: 'string', required: true, desc: '1–200 chars' },
@@ -273,8 +273,10 @@ const gamru = [
       { name: 'priority', type: 'number', required: false },
       { name: 'tags', type: 'string[]', required: false },
       { name: 'data', type: 'object', required: false, desc: 'feature-specific (objectives / levels / reward)' },
+      { name: 'data.levels[].bonus_ids', type: 'string[]', required: false, desc: 'ranks only — Games platform bonus IDs granted when the player reaches that level' },
+      { name: 'data.bonus_ids', type: 'string[] | csv', required: false, desc: 'ranks only — rank-wide Games platform bonus IDs, granted once ALL levels in the rank are completed' },
     ]},
-    response: { status: 201, example: j({ success: true, data: { id: 'uuid', name: 'Daily Spinner', status: 'ACTIVE' } }) },
+    response: { status: 201, example: j({ success: true, data: { id: 'uuid', name: 'Bronze', status: 'ACTIVE', data: { levels: [{ level: 1, xp_start: 0, xp_end: 100, bonus_ids: ['b0000001-0000-4000-8000-000000000002'] }], bonus_ids: ['b0000001-0000-4000-8000-000000000003'] } } }) },
   },
   {
     id: 'gamru-gam-update',
@@ -1463,6 +1465,56 @@ const gamru = [
     params: { fields: [{ name: 'id', type: 'uuid', required: true, desc: 'player id' }] },
     response: { status: 200, example: j({ success: true, message: 'Player mission bundles fetched successfully', data: { bundles: [{ id: 'b1', name: 'bundle mission 1', periodicity: 'WEEKLY', bundle_type: 'Custom', completed: 0, total: 2, missions: [{ id: 'm1', name: 'mission1', status: 'IN_PROGRESS', progress: 2, target: 6, reward_label: 'test get 134 token' }] }] } }) },
   },
+
+  // ---- Bonuses (rank/level bonus mirror) ----
+  // Bonuses are DEFINED on the games platform and PINNED to a GAMRU rank/level
+  // (data.levels[].bonus_ids / data.bonus_ids). On rank save GAMRU snapshots the
+  // definition into `bonuses`; when a player claims on the games platform the
+  // claim is mirrored into `user_bonuses`. The operator views both here; the
+  // games platform writes claims via the S2S record endpoint.
+  {
+    id: 'gamru-bonuses-list',
+    platform: 'gamru', group: 'Bonuses', method: 'GET', path: '/api/bonuses',
+    title: 'List synced bonuses', auth: 'jwt',
+    summary: 'Operator view of the Games platform bonus definitions GAMRU has snapshotted (one row per external bonus id pinned on a rank/level). Each carries a `source` (Games platform). Supports search across name / type / source / bonus id.',
+    query: { fields: [
+      { name: 'page', type: 'number', required: false, desc: 'default 1' },
+      { name: 'limit', type: 'number', required: false, desc: 'default 25' },
+      { name: 'search', type: 'string', required: false, desc: 'case-insensitive match on bonus_name / bonus_type / external_bonus_id / source' },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Bonuses fetched successfully', data: { data: [{ id: 'uuid', external_bonus_id: 'b0000001-0000-4000-8000-000000000003', bonus_name: 'Rank Reward', bonus_type: 'BONUS_CASH', amount: 1000, amount_type: 'BM', status: 'ACTIVE', source: 'Games platform', synced_at: '2026-06-23T09:00:00Z' }], pagination: { total: 3, page: 1, limit: 25, totalPages: 1 } } }) },
+  },
+  {
+    id: 'gamru-user-bonuses-list',
+    platform: 'gamru', group: 'Bonuses', method: 'GET', path: '/api/user-bonuses',
+    title: 'List claimed user bonuses', auth: 'jwt',
+    summary: 'Operator view of the claimed-bonus ledger mirror — one row per bonus a player claimed on the games platform. `source_type` is LEVEL/RANK (with source_id) and `source` is the origin platform (Games platform). Supports search across user / bonus / source. This is an audit mirror; the wallet credit itself stays on the games platform.',
+    query: { fields: [
+      { name: 'page', type: 'number', required: false, desc: 'default 1' },
+      { name: 'limit', type: 'number', required: false, desc: 'default 25' },
+      { name: 'search', type: 'string', required: false, desc: 'match on email / user_id / bonus_name / external_bonus_id / source_type / source' },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'User bonuses fetched successfully', data: { data: [{ id: 'uuid', user_id: 'U-1', email: 'player@brand.com', external_bonus_id: 'b0000001-0000-4000-8000-000000000002', bonus_name: 'Level Reward', source_type: 'LEVEL', source_id: '12', amount: 500, amount_type: 'RM', status: 'CLAIMED', source: 'Games platform', claimed_at: '2026-06-23T09:05:00Z' }], pagination: { total: 1, page: 1, limit: 25, totalPages: 1 } } }) },
+  },
+  {
+    id: 'gamru-user-bonuses-record',
+    platform: 'gamru', group: 'Bonuses', method: 'POST', path: '/api/user-bonuses/record',
+    title: 'Record a bonus claim (S2S)', auth: 'client',
+    summary: 'Called by the games platform (fire-and-forget) after a player claims a bonus, to mirror the claim into GAMRU’s user_bonuses ledger. GAMRU also upserts the bonus snapshot from the same payload, so the Bonuses table stays populated even if the rank-sync never ran. The player is identified by email (+ external_id).',
+    body: { fields: [
+      { name: 'external_bonus_id', type: 'string', required: true, desc: 'the games-platform bonus id' },
+      { name: 'source_type', type: "'LEVEL'|'RANK'", required: true, desc: 'what granted it' },
+      { name: 'source_id', type: 'string', required: false, desc: 'level number or rank id' },
+      { name: 'bonus_name', type: 'string', required: false, desc: 'defaults to "Bonus"' },
+      { name: 'bonus_type', type: 'string', required: false, desc: 'e.g. BONUS_CASH' },
+      { name: 'amount', type: 'number', required: false },
+      { name: 'amount_type', type: "'RM'|'BM'", required: false, desc: 'Real Money / Bonus Money' },
+      { name: 'email', type: 'string', required: false, desc: 'player email (resolves the GAMRU player)' },
+      { name: 'external_id', type: 'string', required: false, desc: 'the games-platform user id' },
+      { name: 'source', type: 'string', required: false, desc: 'origin platform, defaults to Games platform' },
+    ]},
+    response: { status: 200, example: j({ success: true, message: 'Bonus claim recorded', data: { id: 'uuid' } }) },
+  },
 ]
 
 // ===========================================================================
@@ -1831,6 +1883,8 @@ const USER_ENDPOINT_IDS = new Set([
   'gamru-user-ranks-get',
   'gamru-user-rewards-get',
   'gamru-user-shop-get',
+  // bonus claim mirror — the games platform records a claim (S2S, client key)
+  'gamru-user-bonuses-record',
 ])
 const BOTH_ENDPOINT_IDS = new Set(['gamru-health', 'gamru-players-get'])
 

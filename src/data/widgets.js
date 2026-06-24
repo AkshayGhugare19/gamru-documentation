@@ -131,8 +131,9 @@ export const QUICK_START = [
   {
     title: 'Place a widget where you want it',
     plain:
-      'Wherever something should appear (points, missions, rewards…), paste this one line. Pick what to show by changing data-type. Want three things? Paste it three times with different types.',
-    code: `<div class="gamification_widget" data-type="points"></div>`,
+      'Wherever something should appear (profile,points, missions, rewards…), paste this one line. Pick what to show by changing data-type. Want three things? Paste it three times with different types.',
+    code: `<div class="gamification_widget" data-type="profile"></div>`,
+
     codeLabel: 'paste anywhere a widget should show',
   },
   {
@@ -145,6 +146,17 @@ export const QUICK_START = [
 
 // The complete, copy-this-whole-thing example for the quick start.
 export const FULL_EXAMPLE = `<!-- 1) Show the player's points and their missions -->
+<div class="gamification_widget" data-type="profile"></div>
+<div class="gamification_widget" data-type="points"></div>
+<div class="gamification_widget" data-type="mission"></div>
+<div class="gamification_widget" data-type="mission-bundle"></div>
+<div class="gamification_widget" data-type="tournament"></div>
+<div class="gamification_widget" data-type="reward-shop"></div>
+<div class="gamification_widget" data-type="rewards"></div>
+<div class="gamification_widget" data-type="campaign"></div>
+<div class="gamification_widget" data-type="rankings"></div>
+<div class="gamification_widget" data-type="status"></div>
+<div class="gamification_widget" data-type="progress"></div>
 <div class="gamification_widget" data-type="points"></div>
 <div class="gamification_widget" data-type="mission"></div>
 
@@ -162,6 +174,17 @@ export const widgetByType = (type) => ALL_WIDGETS.find((w) => w.type === type)
 // -- code snippets (the real embed contract) ---------------------------------
 
 export const SCRIPT_EMBED = `<!-- 1. Drop a widget anywhere a feature should appear -->
+<div class="gamification_widget" data-type="profile"></div>
+<div class="gamification_widget" data-type="points"></div>
+<div class="gamification_widget" data-type="mission"></div>
+<div class="gamification_widget" data-type="mission-bundle"></div>
+<div class="gamification_widget" data-type="tournament"></div>
+<div class="gamification_widget" data-type="reward-shop"></div>
+<div class="gamification_widget" data-type="rewards"></div>
+<div class="gamification_widget" data-type="campaign"></div>
+<div class="gamification_widget" data-type="rankings"></div>
+<div class="gamification_widget" data-type="status"></div>
+<div class="gamification_widget" data-type="progress"></div>
 <div class="gamification_widget" data-type="points"></div>
 <div class="gamification_widget" data-type="mission"></div>
 
@@ -175,12 +198,97 @@ export const SCRIPT_EMBED = `<!-- 1. Drop a widget anywhere a feature should app
 
 export const IFRAME_EMBED = `<!-- No script? Embed a single widget as a raw iframe.
      embed=1 renders it bare (transparent, no chrome). -->
+
+Profile:
+
+<iframe
+  src="https://gamru-frontend.netlify.app/widget/profile?clientId=lucky-casino&authKey=ck_live_9f2c...&email=player@example.com&embed=1"
+  width="100%"
+  height="800"
+  frameborder="0">
+</iframe>
+
+mission:
+
 <iframe
   src="https://gamru-frontend.netlify.app/widget/mission?clientId=lucky-casino&authKey=ck_live_9f2c...&email=player@example.com&embed=1"
   width="100%"
   height="800"
   frameborder="0">
-</iframe>`
+</iframe>
+
+mission-bundle:
+
+<iframe
+  src="https://gamru-frontend.netlify.app/widget/mission-bundle?clientId=lucky-casino&authKey=ck_live_9f2c...&email=player@example.com&embed=1"
+  width="100%"
+  height="800"
+  frameborder="0">
+</iframe>
+
+tournament:
+
+<iframe
+  src="https://gamru-frontend.netlify.app/widget/tournament?clientId=lucky-casino&authKey=ck_live_9f2c...&email=player@example.com&embed=1"
+  width="100%"
+  height="800"
+  frameborder="0">
+</iframe>
+
+reward-shop:
+
+<iframe
+  src="https://gamru-frontend.netlify.app/widget/reward-shop?clientId=lucky-casino&authKey=ck_live_9f2c...&email=player@example.com&embed=1"
+  width="100%"
+  height="800"
+  frameborder="0">
+</iframe>
+
+rewards:
+
+<iframe
+  src="https://gamru-frontend.netlify.app/widget/rewards?clientId=lucky-casino&authKey=ck_live_9f2c...&email=player@example.com&embed=1"
+  width="100%"
+  height="800"
+  frameborder="0">
+</iframe>
+
+campaign:
+
+<iframe
+  src="https://gamru-frontend.netlify.app/widget/campaign?clientId=lucky-casino&authKey=ck_live_9f2c...&email=player@example.com&embed=1"
+  width="100%"
+  height="800"
+  frameborder="0">
+</iframe>
+
+rankings:
+
+<iframe
+  src="https://gamru-frontend.netlify.app/widget/rankings?clientId=lucky-casino&authKey=ck_live_9f2c...&email=player@example.com&embed=1"
+  width="100%"
+  height="800"
+  frameborder="0">
+</iframe>
+
+status:
+
+<iframe
+  src="https://gamru-frontend.netlify.app/widget/status?clientId=lucky-casino&authKey=ck_live_9f2c...&email=player@example.com&embed=1"
+  width="100%"
+  height="800"
+  frameborder="0">
+</iframe>
+
+progress:
+
+<iframe
+  src="https://gamru-frontend.netlify.app/widget/progress?clientId=lucky-casino&authKey=ck_live_9f2c...&email=player@example.com&embed=1"
+  width="100%"
+  height="800"
+  frameborder="0">
+</iframe>
+`
 
 export const REACT_EMBED = `// In a SPA, load embed.js once, then re-scan after a route/render adds widgets.
 import { useEffect } from 'react'
